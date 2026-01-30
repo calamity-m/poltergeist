@@ -10,8 +10,11 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::key::Jwks;
+
 mod authorize;
 mod config;
+mod key;
 mod token;
 
 pub struct AppState {
@@ -56,7 +59,7 @@ async fn main() {
         )
         .route("/authorize", get(authorize::authorize))
         .route("/token", post(token))
-        .route("/jwks", get(jwks))
+        .route("/jwks", get(key::jwks))
         .with_state(shared_state.clone());
 
     // run our app with hyper
@@ -135,26 +138,4 @@ async fn token(
         expires_in: 3600,
     };
     Json(token)
-}
-
-#[derive(Clone, Serialize, Deserialize)]
-pub struct Jwks {
-    pub keys: Vec<Jwk>,
-}
-
-#[derive(Clone, Serialize, Deserialize)]
-pub struct Jwk {
-    pub kty: String,
-    pub kid: String,
-    pub n: String,
-    pub e: String,
-    pub alg: String,
-    pub r#use: String,
-}
-
-async fn jwks(State(_state): State<Arc<AppState>>) -> Json<Jwks> {
-    // TODO: Return the JWKS JSON
-    // This will expose the public key for verifying the tokens signed by this service
-    let jwks = Jwks { keys: vec![] };
-    Json(jwks)
 }
