@@ -1,6 +1,9 @@
 services:
   poltergeist:
+    # Use 'build' for local development to include code changes
     build: ..
+    # Use 'image' to pull a pre-built version from GitHub Container Registry
+    # image: ghcr.io/google/poltergeist:latest
     volumes:
       - ./poltergeist-config.yaml:/app/config.yaml
       - ../test/private_key.pem:/etc/poltergeist/private_key.pem
