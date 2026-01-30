@@ -185,7 +185,7 @@ impl Default for TelemetryConfig {
         Self {
             format: Default::default(),
             level: LogLevel::Info,
-            axum_level: LogLevel::Info,
+            axum_level: LogLevel::Warn,
             service_name: default_service_name(),
             otlp_enabled: false,
         }
