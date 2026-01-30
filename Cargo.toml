@@ -8,7 +8,7 @@ axum = { version = "0.8.8", features = ["json"] }
 base64 = "0.22.1"
 anyhow = "1.0.86"
 config = { version = "0.15.19", features = ["yaml"] }
-jsonwebtoken = "10.3.0"
+jsonwebtoken = { version = "10.3.0", features = ["rust_crypto"] }
 moka = { version = "0.12.13", features = ["future"] }
 rand = "0.8.5"
 reqwest = { version = "0.13.1", features = ["json"] }
@@ -20,3 +20,7 @@ tokio = { version = "1.49.0", features = ["full"] }
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.22", features = ["fmt"] }
 base64-url = { version = "3.0.2", features = ["std"] }
+
+[dev-dependencies]
+wiremock = "0.6.2"
+
