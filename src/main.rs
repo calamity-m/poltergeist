@@ -92,6 +92,7 @@ async fn main() {
                         .level(Level::INFO),
                 ),
         )
+        .layer(middleware::AuditLayer::default())
         .layer(middleware::TraceParentLayer::default())
         .with_state(shared_state.clone());
 
