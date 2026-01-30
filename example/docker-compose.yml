@@ -23,23 +23,8 @@ services:
 
   downstream-app:
     image: alpine
-    command: >
-      sh -c "apk add --no-core curl jq &&
-             sleep 5 &&
-             echo '--- 1. Fetching OIDC Configuration ---' &&
-             curl -s http://ingress-proxy/.well-known/openid-configuration | jq . &&
-             echo '\n--- 2. Performing M2M Token Exchange (Client Credentials) ---' &&
-             curl -s -X POST http://ingress-proxy/token \
-                  -H 'Content-Type: application/json' \
-                  -d '{\"grant_type\": \"client_credentials\", \"client_id\": \"example-client\", \"client_secret\": \"example-secret\"}' | jq . &&
-             echo '\n--- 3. Performing Authorization Code Flow ---' &&
-             echo 'a. Requesting Authorization Code...' &&
-             CODE=$(curl -s -I "http://ingress-proxy/authorize?client_id=example-app&response_type=code&redirect_uri=http://localhost/callback&code_challenge=xyz" | grep -i location | sed -n 's/.*code=\(.& 23*
-.*\)/\1/p' | tr -d '\r') &&
-             echo "b. Received Code: $CODE" &&
-             echo 'c. Exchanging Code for Tokens...' &&
-             curl -s -X POST http://ingress-proxy/token \
-                  -H 'Content-Type: application/json' \
-                  -d "{\"grant_type\": \"authorization_code\", \"client_id\": \"example-app\", \"code\": \"$CODE\"}" | jq ."
+    volumes:
+      - ./test-flow.sh:/test-flow.sh:ro
+    command: sh -c "apk add --no-cache curl jq && sh /test-flow.sh"
     depends_on:
       - ingress-proxy
