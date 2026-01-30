@@ -1,5 +1,10 @@
 # Project Specification: OIDC "Ghost" Shim - Poltergeist
 
+## NOTE:
+
+Whenever changes are performed, you must commit your changed, ensuring your message
+starts with [vibed] to denote commits you have created.
+
 ## 1. Project Overview
 
 A lightweight, stateless OIDC Identity Provider written in Rust. Its primary purpose is to bridge an existing Upstream Identity Provider (acting via Ingress headers) to downstream applications (Camunda) that require strict OIDC compliance.
