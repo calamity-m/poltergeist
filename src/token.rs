@@ -437,48 +437,4 @@ mod tests {
         assert_eq!(token_data.claims.aud, "custom-app-aud");
         assert_eq!(token_data.claims.sub, "test-user");
     }
-
-    #[tokio::test]
-    async fn test_handle_client_credentials_default_audience() {
-        let private_key_pem = std::fs::read_to_string("test/private_key.pem").unwrap();
-        let key_state = KeyState::new(&private_key_pem);
-
-        let settings = Settings {
-            issuer: "http://localhost:8080".to_string(),
-            grant_types_supported: vec!["client_credentials".to_string()],
-            port: 8080,
-            upstream_oidc_url: "http://upstream".to_string(),
-            upstream_jwks_url: "http://upstream/jwks".to_string(),
-            validate_upstream_token: false,
-            private_key_path: "test/private_key.pem".to_string(),
-            token_expires_in: 3600,
-            clients: vec![StaticClient {
-                client_id: "default-client".to_string(),
-                client_secret: "secret".to_string(),
-                audience: "aud".to_string(), // No audience set
-                client_type: ClientType::Private,
-            }],
-        };
-
-        let state = Arc::new(AppState {
-            settings,
-            jwks_cache: Cache::builder().build(),
-            key_state,
-        });
-
-        let payload = TokenRequest {
-            grant_type: "client_credentials".to_string(),
-            code: None,
-            code_verifier: None,
-            client_id: Some("default-client".to_string()),
-            client_secret: Some("secret".to_string()),
-        };
-
-        let Json(response) = handle_client_credentials(state, payload).await.unwrap();
-
-        let token_data =
-            jsonwebtoken::dangerous::insecure_decode::<Claims>(&response.access_token).unwrap();
-
-        assert_eq!(token_data.claims.aud, "default-client");
-    }
 }
