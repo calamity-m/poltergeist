@@ -40,7 +40,13 @@ pub struct TokenResponse {
 
 /// Handler for the `/token` endpoint.
 ///
-/// Handles both `authorization_code` and `client_credentials` grant types.
+/// 1.  Validates the `grant_type` (supports `authorization_code` and `client_credentials`).
+/// 2.  Retrieves the user identity:
+///     -   For `authorization_code`: From the `auth_code_cache` or the `Authorization` header.
+///     -   For `client_credentials`: From the static configuration.
+/// 3.  Validates client credentials if necessary.
+/// 4.  Mints a new downstream JWT (Access Token & ID Token).
+/// 5.  Returns the tokens in a standard OAuth 2.0 JSON response.
 #[tracing::instrument(
     skip(state, headers, payload),
     fields(
@@ -54,10 +60,7 @@ pub async fn token(
     headers: HeaderMap,
     Json(payload): Json<TokenRequest>,
 ) -> Result<Json<TokenResponse>, (StatusCode, String)> {
-    tracing::info!(
-        "Received token request: grant_type={}",
-        payload.grant_type
-    );
+    tracing::info!("Received token request: grant_type={}", payload.grant_type);
     match payload.grant_type.as_str() {
         "client_credentials" => handle_client_credentials(state, payload).await,
         "authorization_code" => handle_authorization_code(state, headers, payload).await,
@@ -113,7 +116,10 @@ async fn handle_authorization_code(
         })?;
 
         if private_client.client_secret != secret {
-            return Err((StatusCode::UNAUTHORIZED, "invalid client secret".to_string()));
+            return Err((
+                StatusCode::UNAUTHORIZED,
+                "invalid client secret".to_string(),
+            ));
         }
 
         private_client.audience.clone()
@@ -162,10 +168,7 @@ async fn handle_authorization_code(
 
     let expires_in = state.settings.token_expires_in;
 
-    tracing::info!(
-        "Tokens successfully issued for client: {}",
-        client_id
-    );
+    tracing::info!("Tokens successfully issued for client: {}", client_id);
 
     Ok(Json(TokenResponse {
         access_token: token_string.clone(),
@@ -194,10 +197,7 @@ async fn handle_client_credentials(
         )
     })?;
 
-    tracing::info!(
-        "Authenticating client_credentials for: {}",
-        client_id
-    );
+    tracing::info!("Authenticating client_credentials for: {}", client_id);
 
     // Find the client in the static configuration
     let client = state
@@ -206,10 +206,7 @@ async fn handle_client_credentials(
         .iter()
         .find(|c| c.client_id == client_id && c.client_secret == client_secret)
         .ok_or_else(|| {
-            tracing::warn!(
-                "Invalid client credentials for: {}",
-                client_id
-            );
+            tracing::warn!("Invalid client credentials for: {}", client_id);
             (
                 StatusCode::UNAUTHORIZED,
                 "invalid client credentials".to_string(),

@@ -31,7 +31,7 @@ pub struct AuthorizeRequest {
 /// 1.  Checks for an `Authorization: Bearer <token>` header.
 /// 2.  If missing, redirects to the upstream OIDC provider.
 /// 3.  If present, decodes (and optionally validates) the token to extract user identity.
-/// 4.  Generates a random authorization code (dummy).
+/// 4.  Generates a random authorization code.
 /// 5.  Redirects back to the `redirect_uri` with the code.
 #[tracing::instrument(
     skip(state, headers, params),
@@ -58,10 +58,7 @@ pub async fn authorize(
         .iter()
         .any(|c| c.client_id == params.client_id)
     {
-        tracing::warn!(
-            "Invalid client_id: {}",
-            params.client_id
-        );
+        tracing::warn!("Invalid client_id: {}", params.client_id);
         return (StatusCode::BAD_REQUEST, "Invalid client_id").into_response();
     }
 
@@ -69,20 +66,18 @@ pub async fn authorize(
     let identity = match upstream::get_upstream_identity(&state, &headers).await {
         Ok(id) => id,
         Err((_, _)) => {
-            tracing::info!(
-                "No valid Authorization header found, redirecting to upstream IDP"
-            );
+            tracing::info!("No valid Authorization header found, redirecting to upstream IDP");
             return Redirect::to(&state.settings.upstream_oidc_url).into_response();
         }
     };
 
     let auth_code = generate_random_code();
-    state.auth_code_cache.insert(auth_code.clone(), identity).await;
+    state
+        .auth_code_cache
+        .insert(auth_code.clone(), identity)
+        .await;
 
-    tracing::info!(
-        "Issued dummy authorization code for client: {}",
-        params.client_id
-    );
+    tracing::info!("Issued authorization code for client: {}", params.client_id);
     let redirect_url = format!("{}?code={}", params.redirect_uri, auth_code);
     Redirect::to(&redirect_url).into_response()
 }
