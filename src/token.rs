@@ -42,7 +42,9 @@ pub struct TokenResponse {
 ///
 /// 1.  Validates the `grant_type` (supports `authorization_code` and `client_credentials`).
 /// 2.  Retrieves the user identity:
-///     -   For `authorization_code`: From the `auth_code_cache` or the `Authorization` header.
+///     -   For `authorization_code`: Uses the provided code to lookup the user identity
+///         in the `auth_code_cache` (originally stored during the `/authorize` flow).
+///         Falls back to the `Authorization` header if the code is missing or invalid.
 ///     -   For `client_credentials`: From the static configuration.
 /// 3.  Validates client credentials if necessary.
 /// 4.  Mints a new downstream JWT (Access Token & ID Token).
