@@ -10,33 +10,6 @@ use tower::{Layer, Service};
 use tracing::{Instrument, info, span, warn};
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 
-// --- Request Context (Task-Local) ---
-
-tokio::task_local! {
-    pub static REQUEST_CONTEXT: RequestContext;
-}
-
-#[derive(Debug, Clone)]
-pub struct RequestContext {
-    pub endpoint: String,
-    pub host: String,
-    pub method: String,
-}
-
-pub fn with_request_info<F, R>(f: F) -> R
-where
-    F: Fn(&RequestContext) -> R,
-{
-    REQUEST_CONTEXT.try_with(|r| f(r)).unwrap_or_else(|_| {
-        static DEFAULT_CTX: RequestContext = RequestContext {
-            endpoint: String::new(),
-            host: String::new(),
-            method: String::new(),
-        };
-        f(&DEFAULT_CTX)
-    })
-}
-
 // --- TraceParent Middleware ---
 
 pub struct HeaderExtractor<'a> {
@@ -144,37 +117,24 @@ where
             .unwrap_or("")
             .to_string();
 
-        let ctx = RequestContext {
-            endpoint,
-            host,
-            method,
-        };
-
         let fut = self.inner.call(req);
         Box::pin(async move {
-            REQUEST_CONTEXT
-                .scope(ctx, async move {
-                    let response = fut.await;
+            let response = fut.await;
 
-                    if let Ok(ref res) = response {
-                        let status = res.status();
-                        with_request_info(|ctx| {
-                            tracing::info!(
-                                audit = true,
-                                auditType = "authentication",
-                                endpoint = %ctx.endpoint,
-                                host = %ctx.host,
-                                httpMethod = %ctx.method,
-                                status = %status.as_u16(),
-                                "request to {} finished",
-                                ctx.endpoint
-                            );
-                        });
-                    }
+            if let Ok(ref res) = response {
+                tracing::info!(
+                    audit = true,
+                    auditType = "authentication",
+                    endpoint = %endpoint,
+                    host = %host,
+                    httpMethod = %method,
+                    status = %res.status().as_u16(),
+                    "request to {} finished",
+                    endpoint
+                );
+            }
 
-                    response
-                })
-                .await
+            response
         })
     }
 }
