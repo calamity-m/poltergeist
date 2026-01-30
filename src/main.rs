@@ -55,7 +55,11 @@ async fn main() {
     // initialize tracing
     tracing_subscriber::fmt::init();
 
+    tracing::info!("Starting Poltergeist OIDC Shim...");
+
     let settings = config::load_config();
+    tracing::info!("Configuration loaded successfully. Port: {}", settings.port);
+
     // Initialize caches with appropriate TTLs
     let auth_code_cache = Cache::builder()
         .time_to_live(Duration::from_secs(30))
@@ -67,6 +71,7 @@ async fn main() {
     let private_key_pem =
         std::fs::read_to_string(&settings.private_key_path).expect("Failed to read private key");
     let key_state = key::KeyState::new(&private_key_pem);
+    tracing::info!("Cryptographic keys initialized.");
 
     let shared_state = Arc::new(AppState {
         settings,
@@ -90,7 +95,7 @@ async fn main() {
 
     // run our app with hyper
     let addr = SocketAddr::from(([127, 0, 0, 1], shared_state.settings.port));
-    tracing::debug!("listening on {}", addr);
+    tracing::info!("Listening on http://{}", addr);
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
 }
@@ -116,6 +121,7 @@ struct OIDCConfig {
 /// Handler for the OIDC Discovery endpoint (`/.well-known/openid-configuration`).
 /// Returns the configuration metadata for this OIDC provider.
 async fn openid_configuration(State(state): State<Arc<AppState>>) -> Json<OIDCConfig> {
+    tracing::debug!("Serving OIDC discovery configuration");
     let config = OIDCConfig {
         issuer: state.settings.issuer.clone(),
         authorization_endpoint: format!("{}/authorize", state.settings.issuer),

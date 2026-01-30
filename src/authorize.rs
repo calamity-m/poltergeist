@@ -49,6 +49,11 @@ pub async fn authorize(
     Query(params): Query<AuthorizeRequest>,
     headers: HeaderMap,
 ) -> impl IntoResponse {
+    tracing::info!(
+        "Received authorization request for client: {}",
+        params.client_id
+    );
+
     let upstream_token = match headers
         .get(header::AUTHORIZATION)
         .and_then(|header| header.to_str().ok())
@@ -56,11 +61,13 @@ pub async fn authorize(
     {
         Some(token) => token,
         None => {
+            tracing::info!("No Authorization header found, redirecting to upstream IDP");
             return Redirect::to(&state.settings.upstream_oidc_url).into_response();
         }
     };
 
     let mut user_identity = if state.settings.validate_upstream_token {
+        tracing::debug!("Validating upstream token against JWKS");
         match decode_token_with_validation(
             &state,
             upstream_token,
@@ -75,6 +82,7 @@ pub async fn authorize(
             }
         }
     } else {
+        tracing::debug!("Decoding upstream token without signature validation");
         match decode_token_without_validation(upstream_token) {
             Ok(identity) => identity,
             Err(e) => {
@@ -85,6 +93,11 @@ pub async fn authorize(
     };
 
     user_identity.client_id = params.client_id.clone();
+    tracing::info!(
+        "User authenticated. Subject: {}, Email: {}",
+        user_identity.sub,
+        user_identity.email
+    );
 
     let auth_code = generate_random_code();
     state
@@ -92,6 +105,7 @@ pub async fn authorize(
         .insert(auth_code.clone(), user_identity)
         .await;
 
+    tracing::info!("Issued authorization code for client: {}", params.client_id);
     let redirect_url = format!("{}?code={}", params.redirect_uri, auth_code);
     Redirect::to(&redirect_url).into_response()
 }

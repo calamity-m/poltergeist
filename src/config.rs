@@ -47,10 +47,19 @@ pub struct StaticClient {
 /// # Panics
 /// Panics if the configuration file cannot be found or if it doesn't match the `Settings` structure.
 pub fn load_config() -> Settings {
-    config::Config::builder()
+    let cfg = config::Config::builder()
         .add_source(config::File::with_name("config"))
         .build()
-        .unwrap()
-        .try_deserialize::<Settings>()
+        .map_err(|e| {
+            tracing::error!("Failed to build configuration: {}", e);
+            e
+        })
+        .unwrap();
+
+    cfg.try_deserialize::<Settings>()
+        .map_err(|e| {
+            tracing::error!("Failed to deserialize configuration: {}", e);
+            e
+        })
         .unwrap()
 }

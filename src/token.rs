@@ -62,13 +62,17 @@ pub async fn token(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<TokenRequest>,
 ) -> Result<Json<TokenResponse>, (StatusCode, String)> {
+    tracing::info!("Received token request: grant_type={}", payload.grant_type);
     match payload.grant_type.as_str() {
         "client_credentials" => handle_client_credentials(state, payload).await,
         "authorization_code" => handle_authorization_code(state, payload).await,
-        _ => Err((
-            StatusCode::BAD_REQUEST,
-            format!("unsupported_grant_type: {}", payload.grant_type),
-        )),
+        _ => {
+            tracing::warn!("Unsupported grant type: {}", payload.grant_type);
+            Err((
+                StatusCode::BAD_REQUEST,
+                format!("unsupported_grant_type: {}", payload.grant_type),
+            ))
+        }
     }
 }
 
@@ -76,16 +80,28 @@ async fn handle_authorization_code(
     state: Arc<AppState>,
     payload: TokenRequest,
 ) -> Result<Json<TokenResponse>, (StatusCode, String)> {
-    let code = payload.code.ok_or((
-        StatusCode::BAD_REQUEST,
-        "missing code for authorization_code grant".to_string(),
-    ))?;
+    let code = payload.code.ok_or_else(|| {
+        tracing::warn!("Missing code in authorization_code grant request");
+        (
+            StatusCode::BAD_REQUEST,
+            "missing code for authorization_code grant".to_string(),
+        )
+    })?;
 
     // Retrieve user identity from cache
-    let user_identity = state.auth_code_cache.get(&code).await.ok_or((
-        StatusCode::BAD_REQUEST,
-        "invalid or expired authorization code".to_string(),
-    ))?;
+    let user_identity = state.auth_code_cache.get(&code).await.ok_or_else(|| {
+        tracing::warn!("Invalid or expired authorization code: {}", code);
+        (
+            StatusCode::BAD_REQUEST,
+            "invalid or expired authorization code".to_string(),
+        )
+    })?;
+
+    tracing::info!(
+        "Exchanging code for client: {}, subject: {}",
+        user_identity.client_id,
+        user_identity.sub
+    );
 
     // Remove code from cache after use (one-time use)
     state.auth_code_cache.invalidate(&code).await;
@@ -107,6 +123,8 @@ async fn handle_authorization_code(
         .and_then(|c| c.audience.clone())
         .unwrap_or_else(|| user_identity.client_id.clone());
 
+    tracing::debug!("Issuing tokens with audience: {}", aud);
+
     let claims = Claims {
         sub: user_identity.sub.clone(),
         aud,
@@ -119,8 +137,15 @@ async fn handle_authorization_code(
     let mut header = Header::new(jsonwebtoken::Algorithm::RS256);
     header.kid = Some("poltergeist".to_string());
 
-    let token_string = encode(&header, &claims, &state.key_state.encoding_key)
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let token_string = encode(&header, &claims, &state.key_state.encoding_key).map_err(|e| {
+        tracing::error!("Failed to encode JWT: {}", e);
+        (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+    })?;
+
+    tracing::info!(
+        "Tokens successfully issued for client: {}",
+        user_identity.client_id
+    );
 
     Ok(Json(TokenResponse {
         access_token: token_string.clone(),
@@ -133,14 +158,22 @@ async fn handle_client_credentials(
     state: Arc<AppState>,
     payload: TokenRequest,
 ) -> Result<Json<TokenResponse>, (StatusCode, String)> {
-    let client_id = payload.client_id.ok_or((
-        StatusCode::BAD_REQUEST,
-        "missing client_id for client_credentials grant".to_string(),
-    ))?;
-    let client_secret = payload.client_secret.ok_or((
-        StatusCode::BAD_REQUEST,
-        "missing client_secret for client_credentials grant".to_string(),
-    ))?;
+    let client_id = payload.client_id.ok_or_else(|| {
+        tracing::warn!("Missing client_id for client_credentials grant");
+        (
+            StatusCode::BAD_REQUEST,
+            "missing client_id for client_credentials grant".to_string(),
+        )
+    })?;
+    let client_secret = payload.client_secret.ok_or_else(|| {
+        tracing::warn!("Missing client_secret for client_credentials grant");
+        (
+            StatusCode::BAD_REQUEST,
+            "missing client_secret for client_credentials grant".to_string(),
+        )
+    })?;
+
+    tracing::info!("Authenticating client_credentials for: {}", client_id);
 
     // Find the client in the static configuration
     let client = state
@@ -148,7 +181,13 @@ async fn handle_client_credentials(
         .clients
         .iter()
         .find(|c| c.client_id == client_id && c.client_secret == client_secret)
-        .ok_or((StatusCode::UNAUTHORIZED, "invalid client credentials".to_string()))?;
+        .ok_or_else(|| {
+            tracing::warn!("Invalid client credentials for: {}", client_id);
+            (
+                StatusCode::UNAUTHORIZED,
+                "invalid client credentials".to_string(),
+            )
+        })?;
 
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -156,12 +195,16 @@ async fn handle_client_credentials(
         .as_secs();
     let expires_in = 3600;
 
+    let aud = client
+        .audience
+        .clone()
+        .unwrap_or_else(|| client.client_id.clone());
+
+    tracing::debug!("Issuing M2M tokens with audience: {}", aud);
+
     let claims = Claims {
         sub: client.client_id.clone(),
-        aud: client
-            .audience
-            .clone()
-            .unwrap_or_else(|| client.client_id.clone()),
+        aud,
         iss: state.settings.issuer.clone(),
         iat: now,
         exp: now + expires_in,
@@ -171,8 +214,12 @@ async fn handle_client_credentials(
     let mut header = Header::new(jsonwebtoken::Algorithm::RS256);
     header.kid = Some("poltergeist".to_string());
 
-    let token_string = encode(&header, &claims, &state.key_state.encoding_key)
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let token_string = encode(&header, &claims, &state.key_state.encoding_key).map_err(|e| {
+        tracing::error!("Failed to encode M2M JWT: {}", e);
+        (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+    })?;
+
+    tracing::info!("M2M tokens successfully issued for client: {}", client_id);
 
     Ok(Json(TokenResponse {
         access_token: token_string.clone(),

@@ -40,6 +40,7 @@ pub struct Jwk {
 ///
 /// Returns the pre-computed JWKS JSON string.
 pub async fn jwks(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+    tracing::debug!("Serving JWKS public keys");
     // We already have the JSON string pre-computed, so we return it directly
     // to avoid double-serialization overhead.
     (
