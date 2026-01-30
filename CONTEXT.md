@@ -175,6 +175,10 @@ Generate an RSA Keypair (openssl genrsa -out private.pem 2048).
 
 Implement /jwks to serve the public key derived from that PEM.
 
+Read yaml configuration.
+
+Utilise trace crate for logging.
+
 #### Phase 2: The M2M Flow (Easiest)
 
 Implement /token handler.

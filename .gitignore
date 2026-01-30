@@ -12,3 +12,8 @@ config.toml
 # OS-specific files
 .DS_Store
 Thumbs.db
+
+
+# Added by cargo
+
+/target
