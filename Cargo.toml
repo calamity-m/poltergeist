@@ -4,16 +4,16 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-axum = "0.8.8"
+axum = { version = "0.8.8", features = ["json"] }
 base64 = "0.22.1"
-config = "0.15.19"
+config = { version = "0.15.19", features = ["yaml"] }
 jsonwebtoken = "10.3.0"
-moka = "0.12.13"
+moka = { version = "0.12.13", features = ["future"] }
 reqwest = "0.13.1"
 rsa = "0.9.10"
-serde = "1.0.228"
+serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 sha2 = "0.10.9"
-tokio = "1.49.0"
+tokio = { version = "1.49.0", features = ["full"] }
 tracing = "0.1.44"
-tracing-subscriber = "0.3.22"
+tracing-subscriber = { version = "0.3.22", features = ["fmt"] }

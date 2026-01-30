@@ -1,6 +1,9 @@
 # Project Specification: Poltergeist
 **The "Performative" OIDC Shim for Camunda 8**
 
+Note: you should always commit after finishing up the request, ensuring your commit
+starts with [vibed] so that your commits are immediately identifiable.
+
 ## 1. Project Overview
 **Ghosted** is a lightweight, stateless OIDC stub written in Rust. It exists solely to satisfy Camunda 8's strict OIDC requirements by bridging an existing Ingress authentication context.
 
