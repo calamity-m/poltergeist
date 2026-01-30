@@ -22,6 +22,7 @@ mod authorize;
 mod config;
 mod jwks;
 mod key;
+mod minted;
 mod token;
 mod upstream;
 

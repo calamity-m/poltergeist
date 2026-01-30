@@ -27,7 +27,9 @@ pub struct Settings {
     /// Default token expiration time in seconds.
     pub token_expires_in: u64,
     /// Static clients for M2M (client_credentials) flow.
-    pub clients: Vec<StaticClient>,
+    pub private_clients: Vec<PrivateClient>,
+    /// Static clients for Browser to service (authorization_code) flow.
+    pub public_clients: Vec<PublicClient>,
 }
 
 #[derive(Clone, Deserialize, Debug, PartialEq)]
@@ -39,7 +41,7 @@ pub enum ClientType {
 
 /// Represents a static OAuth2 client for service-to-service communication.
 #[derive(Clone, Deserialize)]
-pub struct StaticClient {
+pub struct PrivateClient {
     /// The client's unique identifier.
     pub client_id: String,
     /// The client's secret.
@@ -47,8 +49,16 @@ pub struct StaticClient {
     /// The audience to be included in the tokens issued for this client.
     /// If not provided, a default might be used.
     pub audience: String,
-    /// The type of client (public or private).
-    pub client_type: ClientType,
+}
+
+/// Represents a static OAuth2 client for browser-to-service communication.
+#[derive(Clone, Deserialize)]
+pub struct PublicClient {
+    /// The client's unique identifier.
+    pub client_id: String,
+    /// The audience to be included in the tokens issued for this client.
+    /// If not provided, a default might be used.
+    pub audience: String,
 }
 
 /// Loads configuration from the `config.yaml` file.

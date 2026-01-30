@@ -2,6 +2,8 @@
 //!
 //! Handles the exchange of authorization codes (or client credentials) for access and ID tokens.
 
+use crate::config::ClientType;
+use crate::minted::DownstreamClaims;
 use crate::{AppState, upstream};
 use axum::Json;
 use axum::extract::State;
@@ -36,23 +38,6 @@ pub struct TokenResponse {
     id_token: String,
     /// Time in seconds until the token expires.
     expires_in: u64,
-}
-
-/// JWT claims for the tokens issued by Poltergeist.
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Claims {
-    /// Subject identifier.
-    pub sub: String,
-    /// Audience.
-    pub aud: String,
-    /// Client ID
-    pub client_id: String,
-    /// Issuer.
-    pub iss: String,
-    /// Expiration time (UNIX timestamp).
-    pub exp: u64,
-    /// Issued at (UNIX timestamp).
-    pub iat: u64,
 }
 
 /// Handler for the `/token` endpoint.
@@ -96,7 +81,7 @@ async fn handle_authorization_code(
 
     let client = state
         .settings
-        .clients
+        .public_clients
         .iter()
         .find(|c| c.client_id == client_id)
         .ok_or_else(|| {
@@ -108,7 +93,7 @@ async fn handle_authorization_code(
 
     // We ignore the code parameter because this is a "performative" shim.
     // The actual identity comes from the Authorization header injected by the gateway.
-    let mut user_identity = upstream::get_upstream_identity(&state, &headers).await?;
+    let user_identity = upstream::get_upstream_identity(&state, &headers).await?;
 
     tracing::info!(
         audit = true,
@@ -127,7 +112,7 @@ async fn handle_authorization_code(
 
     tracing::debug!("Issuing tokens with audience: {}", aud);
 
-    let claims = Claims {
+    let claims = DownstreamClaims {
         sub: user_identity.sub.clone(),
         aud: aud.to_string(),
         client_id,
@@ -186,7 +171,7 @@ async fn handle_client_credentials(
     // Find the client in the static configuration
     let client = state
         .settings
-        .clients
+        .private_clients
         .iter()
         .find(|c| c.client_id == client_id && c.client_secret == client_secret)
         .ok_or_else(|| {
@@ -211,7 +196,7 @@ async fn handle_client_credentials(
 
     tracing::debug!("Issuing M2M tokens with audience: {}", aud);
 
-    let claims = Claims {
+    let claims = DownstreamClaims {
         sub: client.client_id.clone(),
         aud,
         client_id,
@@ -240,7 +225,7 @@ async fn handle_client_credentials(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{ClientType, Settings, StaticClient};
+    use crate::config::{ClientType, PrivateClient, PublicClient, Settings};
     use crate::key::KeyState;
     use moka::future::Cache;
 
@@ -258,12 +243,12 @@ mod tests {
             validate_upstream_token: false,
             private_key_path: "test/private_key.pem".to_string(),
             token_expires_in: 3600,
-            clients: vec![StaticClient {
+            private_clients: vec![PrivateClient {
                 client_id: "test-client".to_string(),
                 client_secret: "test-secret".to_string(),
                 audience: "aud".to_string(),
-                client_type: ClientType::Private,
             }],
+            public_clients: vec![],
         };
 
         let state = Arc::new(AppState {
@@ -299,12 +284,12 @@ mod tests {
             validate_upstream_token: false,
             private_key_path: "test/private_key.pem".to_string(),
             token_expires_in: 3600,
-            clients: vec![StaticClient {
+            private_clients: vec![PrivateClient {
                 client_id: "test-client".to_string(),
                 client_secret: "test-secret".to_string(),
                 audience: "aud".to_string(),
-                client_type: ClientType::Private,
             }],
+            public_clients: vec![],
         };
 
         let state = Arc::new(AppState {
@@ -342,12 +327,12 @@ mod tests {
             validate_upstream_token: false,
             private_key_path: "test/private_key.pem".to_string(),
             token_expires_in: 3600,
-            clients: vec![StaticClient {
+            private_clients: vec![PrivateClient {
                 client_id: "test-client".to_string(),
                 client_secret: "test-secret".to_string(),
                 audience: "custom-audience".to_string(),
-                client_type: ClientType::Private,
             }],
+            public_clients: vec![],
         };
 
         let state = Arc::new(AppState {
@@ -367,7 +352,8 @@ mod tests {
         let Json(response) = handle_client_credentials(state, payload).await.unwrap();
 
         let token_data =
-            jsonwebtoken::dangerous::insecure_decode::<Claims>(&response.access_token).unwrap();
+            jsonwebtoken::dangerous::insecure_decode::<DownstreamClaims>(&response.access_token)
+                .unwrap();
 
         assert_eq!(token_data.claims.aud, "custom-audience");
     }
@@ -386,11 +372,10 @@ mod tests {
             validate_upstream_token: false,
             private_key_path: "test/private_key.pem".to_string(),
             token_expires_in: 3600,
-            clients: vec![StaticClient {
+            private_clients: vec![],
+            public_clients: vec![PublicClient {
                 client_id: "web-app".to_string(),
-                client_secret: "secret".to_string(),
                 audience: "custom-app-aud".to_string(),
-                client_type: ClientType::Public,
             }],
         };
 
@@ -404,7 +389,6 @@ mod tests {
         let upstream_claims = crate::upstream::UpstreamClaims {
             sub: "test-user".to_string(),
             email: "test@example.com".to_string(),
-            exp: 10000000000,
         };
         let upstream_token = jsonwebtoken::encode(
             &Header::default(),
@@ -432,7 +416,8 @@ mod tests {
             .unwrap();
 
         let token_data =
-            jsonwebtoken::dangerous::insecure_decode::<Claims>(&response.access_token).unwrap();
+            jsonwebtoken::dangerous::insecure_decode::<DownstreamClaims>(&response.access_token)
+                .unwrap();
 
         assert_eq!(token_data.claims.aud, "custom-app-aud");
         assert_eq!(token_data.claims.sub, "test-user");

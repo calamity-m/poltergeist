@@ -6,12 +6,11 @@ use jsonwebtoken::{DecodingKey, Validation, decode, decode_header};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-/// Claims expected in the upstream OIDC token.
+/// Claims from the upstream IDP that will carry over into the newly minted token
 #[derive(Debug, Deserialize, Serialize)]
 pub struct UpstreamClaims {
     pub sub: String,
     pub email: String,
-    pub exp: u64,
 }
 
 pub async fn get_upstream_identity(
