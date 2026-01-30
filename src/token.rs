@@ -91,13 +91,27 @@ async fn handle_authorization_code(
     })?;
 
     // Retrieve user identity from cache
-    let user_identity = state.auth_code_cache.get(&code).await.ok_or_else(|| {
-        tracing::warn!("Invalid or expired authorization code: {}", code);
-        (
-            StatusCode::BAD_REQUEST,
-            "invalid or expired authorization code".to_string(),
-        )
-    })?;
+    let user_identity = match state.auth_code_cache.get(&code).await {
+        Some(identity) => {
+            // Remove code from cache after use (one-time use)
+            state.auth_code_cache.invalidate(&code).await;
+            identity
+        }
+        None => {
+            tracing::warn!(
+                audit = true,
+                "Authorization code not found in cache (performative flow): {}",
+                code
+            );
+            // Return a dummy identity to allow the flow to continue
+            crate::UserIdentity {
+                sub: "unknown".to_string(),
+                email: "unknown@example.com".to_string(),
+                groups: vec![],
+                client_id: payload.client_id.unwrap_or_else(|| "unknown".to_string()),
+            }
+        }
+    };
 
     tracing::info!(
         audit = true,
@@ -105,9 +119,6 @@ async fn handle_authorization_code(
         user_identity.client_id,
         user_identity.sub
     );
-
-    // Remove code from cache after use (one-time use)
-    state.auth_code_cache.invalidate(&code).await;
 
     // Find the client to get its configured audience
     let client = state
@@ -421,6 +432,47 @@ mod tests {
         
         assert_eq!(token_data.claims.aud, "custom-app-aud");
         assert_eq!(token_data.claims.sub, "test-user");
+    }
+
+    #[tokio::test]
+    async fn test_handle_authorization_code_missing_from_cache() {
+        let private_key_pem = std::fs::read_to_string("test/private_key.pem").unwrap();
+        let key_state = KeyState::new(&private_key_pem);
+
+        let settings = Settings {
+            issuer: "http://localhost:8080".to_string(),
+            grant_types_supported: vec!["authorization_code".to_string()],
+            port: 8080,
+            upstream_oidc_url: "http://upstream".to_string(),
+            upstream_jwks_url: "http://upstream/jwks".to_string(),
+            validate_upstream_token: false,
+            private_key_path: "test/private_key.pem".to_string(),
+            token_expires_in: 3600,
+            clients: vec![],
+        };
+
+        let state = Arc::new(AppState {
+            settings,
+            auth_code_cache: Cache::builder().build(), // Empty cache
+            jwks_cache: Cache::builder().build(),
+            key_state,
+        });
+
+        let payload = TokenRequest {
+            grant_type: "authorization_code".to_string(),
+            code: Some("non-existent-code".to_string()),
+            code_verifier: None,
+            client_id: Some("test-client".to_string()),
+            client_secret: None,
+        };
+
+        let Json(response) = handle_authorization_code(state, payload).await.unwrap();
+        
+        let token_data = jsonwebtoken::dangerous::insecure_decode::<Claims>(&response.access_token).unwrap();
+        
+        // Should have "unknown" identity but still issue a token
+        assert_eq!(token_data.claims.sub, "unknown");
+        assert_eq!(token_data.claims.aud, "test-client");
     }
 
     #[tokio::test]
