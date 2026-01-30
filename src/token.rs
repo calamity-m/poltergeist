@@ -2,8 +2,8 @@
 //!
 //! Handles the exchange of authorization codes (or client credentials) for access and ID tokens.
 
-use crate::downstream;
 use crate::AppState;
+use crate::downstream;
 use axum::Json;
 use axum::extract::State;
 use axum::http::{HeaderMap, StatusCode};
@@ -22,7 +22,7 @@ pub struct TokenRequest {
     /// PKCE code verifier (currently ignored but part of the spec).
     code_verifier: Option<String>,
     /// Client identifier.
-    pub client_id: Option<String>,
+    pub client_id: String,
     /// Client secret (for client_credentials flow).
     client_secret: Option<String>,
 }
@@ -80,16 +80,14 @@ async fn handle_authorization_code(
     payload: TokenRequest,
 ) -> Result<Json<TokenResponse>, (StatusCode, String)> {
     // First ensure we're using a valid client
-    let client_id = payload
-        .client_id
-        .ok_or_else(|| (StatusCode::BAD_REQUEST, "no client_id provided".to_string()))?;
+    let client_id = &payload.client_id;
 
     // Try to find as public client first
     let public_client = state
         .settings
         .public_clients
         .iter()
-        .find(|c| c.client_id == client_id);
+        .find(|c| c.client_id == *client_id);
 
     let aud = if let Some(c) = public_client {
         c.audience.clone()
@@ -99,7 +97,7 @@ async fn handle_authorization_code(
             .settings
             .private_clients
             .iter()
-            .find(|c| c.client_id == client_id)
+            .find(|c| c.client_id == *client_id)
             .ok_or_else(|| {
                 (
                     StatusCode::BAD_REQUEST,
@@ -179,14 +177,8 @@ async fn handle_client_credentials(
     state: Arc<AppState>,
     payload: TokenRequest,
 ) -> Result<Json<TokenResponse>, (StatusCode, String)> {
-    let client_id = payload.client_id.ok_or_else(|| {
-        tracing::warn!("Missing client_id for client_credentials grant");
-        (
-            StatusCode::BAD_REQUEST,
-            "missing client_id for client_credentials grant".to_string(),
-        )
-    })?;
-    let client_secret = payload.client_secret.ok_or_else(|| {
+    let client_id = &payload.client_id;
+    let client_secret = payload.client_secret.as_ref().ok_or_else(|| {
         tracing::warn!("Missing client_secret for client_credentials grant");
         (
             StatusCode::BAD_REQUEST,
@@ -201,7 +193,7 @@ async fn handle_client_credentials(
         .settings
         .private_clients
         .iter()
-        .find(|c| c.client_id == client_id && c.client_secret == client_secret)
+        .find(|c| c.client_id == *client_id && c.client_secret == *client_secret)
         .ok_or_else(|| {
             tracing::warn!("Invalid client credentials for: {}", client_id);
             (
@@ -271,7 +263,7 @@ mod tests {
             grant_type: "client_credentials".to_string(),
             code: None,
             code_verifier: None,
-            client_id: Some("test-client".to_string()),
+            client_id: "test-client".to_string(),
             client_secret: Some("test-secret".to_string()),
         };
 
@@ -314,7 +306,7 @@ mod tests {
             grant_type: "client_credentials".to_string(),
             code: None,
             code_verifier: None,
-            client_id: Some("test-client".to_string()),
+            client_id: "test-client".to_string(),
             client_secret: Some("wrong-secret".to_string()),
         };
 
@@ -359,7 +351,7 @@ mod tests {
             grant_type: "client_credentials".to_string(),
             code: None,
             code_verifier: None,
-            client_id: Some("test-client".to_string()),
+            client_id: "test-client".to_string(),
             client_secret: Some("test-secret".to_string()),
         };
 
@@ -417,13 +409,11 @@ mod tests {
             grant_type: "authorization_code".to_string(),
             code: Some(code),
             code_verifier: None,
-            client_id: Some("web-app".to_string()),
+            client_id: "web-app".to_string(),
             client_secret: None,
         };
 
-        let Json(response) = handle_authorization_code(state, payload)
-            .await
-            .unwrap();
+        let Json(response) = handle_authorization_code(state, payload).await.unwrap();
 
         let token_data =
             jsonwebtoken::dangerous::insecure_decode::<DownstreamClaims>(&response.access_token)
@@ -480,13 +470,11 @@ mod tests {
             grant_type: "authorization_code".to_string(),
             code: Some(code),
             code_verifier: None,
-            client_id: Some("confidential-client".to_string()),
+            client_id: "confidential-client".to_string(),
             client_secret: Some("top-secret".to_string()),
         };
 
-        let Json(response) = handle_authorization_code(state, payload)
-            .await
-            .unwrap();
+        let Json(response) = handle_authorization_code(state, payload).await.unwrap();
 
         let token_data =
             jsonwebtoken::dangerous::insecure_decode::<DownstreamClaims>(&response.access_token)
