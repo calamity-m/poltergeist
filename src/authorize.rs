@@ -39,8 +39,7 @@ pub async fn authorize(
     Query(params): Query<AuthorizeRequest>,
     headers: HeaderMap,
 ) -> impl IntoResponse {
-    tracing::info!(
-        audit = true,
+    crate::audit!(
         "Received authorization request for client: {}",
         params.client_id
     );
@@ -52,8 +51,7 @@ pub async fn authorize(
         .iter()
         .any(|c| c.client_id == params.client_id)
     {
-        tracing::warn!(
-            audit = true,
+        crate::audit!(
             "Invalid client_id: {}",
             params.client_id
         );
@@ -64,8 +62,7 @@ pub async fn authorize(
     let identity = match upstream::get_upstream_identity(&state, &headers).await {
         Ok(id) => id,
         Err((_, _)) => {
-            tracing::info!(
-                audit = true,
+            crate::audit!(
                 "No valid Authorization header found, redirecting to upstream IDP"
             );
             return Redirect::to(&state.settings.upstream_oidc_url).into_response();
@@ -75,8 +72,7 @@ pub async fn authorize(
     let auth_code = generate_random_code();
     state.auth_code_cache.insert(auth_code.clone(), identity).await;
 
-    tracing::info!(
-        audit = true,
+    crate::audit!(
         "Issued dummy authorization code for client: {}",
         params.client_id
     );

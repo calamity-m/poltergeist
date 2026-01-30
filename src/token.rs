@@ -47,8 +47,7 @@ pub async fn token(
     headers: HeaderMap,
     Json(payload): Json<TokenRequest>,
 ) -> Result<Json<TokenResponse>, (StatusCode, String)> {
-    tracing::info!(
-        audit = true,
+    crate::audit!(
         "Received token request: grant_type={}",
         payload.grant_type
     );
@@ -130,8 +129,7 @@ async fn handle_authorization_code(
         upstream::get_upstream_identity(&state, &headers).await?
     };
 
-    tracing::info!(
-        audit = true,
+    crate::audit!(
         "Exchanging code (performative) for client: {}, subject: {}",
         client_id,
         upstream_claims.sub
@@ -157,8 +155,7 @@ async fn handle_authorization_code(
 
     let expires_in = state.settings.token_expires_in;
 
-    tracing::info!(
-        audit = true,
+    crate::audit!(
         "Tokens successfully issued for client: {}",
         client_id
     );
@@ -190,8 +187,7 @@ async fn handle_client_credentials(
         )
     })?;
 
-    tracing::info!(
-        audit = true,
+    crate::audit!(
         "Authenticating client_credentials for: {}",
         client_id
     );
@@ -203,8 +199,7 @@ async fn handle_client_credentials(
         .iter()
         .find(|c| c.client_id == client_id && c.client_secret == client_secret)
         .ok_or_else(|| {
-            tracing::warn!(
-                audit = true,
+            crate::audit!(
                 "Invalid client credentials for: {}",
                 client_id
             );
@@ -224,7 +219,7 @@ async fn handle_client_credentials(
         (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
     })?;
 
-    tracing::info!(audit = true, "M2M tokens successfully issued for client");
+    crate::audit!("M2M tokens successfully issued for client");
 
     Ok(Json(TokenResponse {
         access_token: token_string.clone(),

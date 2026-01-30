@@ -19,6 +19,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 mod authorize;
+mod audit;
 mod config;
 mod downstream;
 mod jwks;

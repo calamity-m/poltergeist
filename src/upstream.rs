@@ -17,20 +17,18 @@ pub async fn get_upstream_identity(
     state: &Arc<AppState>,
     headers: &HeaderMap,
 ) -> Result<UpstreamClaims, (StatusCode, String)> {
-    let upstream_token = match headers
-        .get(header::AUTHORIZATION)
-        .and_then(|header| header.to_str().ok())
-        .and_then(|header| header.strip_prefix("Bearer "))
-    {
-        Some(token) => token,
+    let auth_header = match headers.get(header::AUTHORIZATION) {
+        Some(h) => h,
         None => {
-            tracing::info!(audit = true, "No Authorization header found");
-            return Err((
-                StatusCode::UNAUTHORIZED,
-                "Missing Authorization header".to_string(),
-            ));
+            crate::audit!("No Authorization header found");
+            return Err((StatusCode::UNAUTHORIZED, "missing authorization header".to_string()));
         }
     };
+
+    let auth_str = auth_header
+        .to_str()
+        .map_err(|_| (StatusCode::BAD_REQUEST, "invalid auth header".to_string()))?;
+    let upstream_token = auth_str.trim_start_matches("Bearer ");
 
     if state.settings.validate_upstream_token {
         tracing::debug!("Validating upstream token against JWKS");
