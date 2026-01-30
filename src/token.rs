@@ -62,7 +62,7 @@ pub async fn token(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<TokenRequest>,
 ) -> Result<Json<TokenResponse>, (StatusCode, String)> {
-    tracing::info!("Received token request: grant_type={}", payload.grant_type);
+    tracing::info!(audit = true, "Received token request: grant_type={}", payload.grant_type);
     match payload.grant_type.as_str() {
         "client_credentials" => handle_client_credentials(state, payload).await,
         "authorization_code" => handle_authorization_code(state, payload).await,
@@ -98,6 +98,7 @@ async fn handle_authorization_code(
     })?;
 
     tracing::info!(
+        audit = true,
         "Exchanging code for client: {}, subject: {}",
         user_identity.client_id,
         user_identity.sub
@@ -143,6 +144,7 @@ async fn handle_authorization_code(
     })?;
 
     tracing::info!(
+        audit = true,
         "Tokens successfully issued for client: {}",
         user_identity.client_id
     );
@@ -173,7 +175,7 @@ async fn handle_client_credentials(
         )
     })?;
 
-    tracing::info!("Authenticating client_credentials for: {}", client_id);
+    tracing::info!(audit = true, "Authenticating client_credentials for: {}", client_id);
 
     // Find the client in the static configuration
     let client = state
@@ -182,7 +184,7 @@ async fn handle_client_credentials(
         .iter()
         .find(|c| c.client_id == client_id && c.client_secret == client_secret)
         .ok_or_else(|| {
-            tracing::warn!("Invalid client credentials for: {}", client_id);
+            tracing::warn!(audit = true, "Invalid client credentials for: {}", client_id);
             (
                 StatusCode::UNAUTHORIZED,
                 "invalid client credentials".to_string(),
@@ -219,7 +221,7 @@ async fn handle_client_credentials(
         (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
     })?;
 
-    tracing::info!("M2M tokens successfully issued for client: {}", client_id);
+    tracing::info!(audit = true, "M2M tokens successfully issued for client: {}", client_id);
 
     Ok(Json(TokenResponse {
         access_token: token_string.clone(),

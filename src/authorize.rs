@@ -50,6 +50,7 @@ pub async fn authorize(
     headers: HeaderMap,
 ) -> impl IntoResponse {
     tracing::info!(
+        audit = true,
         "Received authorization request for client: {}",
         params.client_id
     );
@@ -61,7 +62,7 @@ pub async fn authorize(
     {
         Some(token) => token,
         None => {
-            tracing::info!("No Authorization header found, redirecting to upstream IDP");
+            tracing::info!(audit = true, "No Authorization header found, redirecting to upstream IDP");
             return Redirect::to(&state.settings.upstream_oidc_url).into_response();
         }
     };
@@ -94,6 +95,7 @@ pub async fn authorize(
 
     user_identity.client_id = params.client_id.clone();
     tracing::info!(
+        audit = true,
         "User authenticated. Subject: {}, Email: {}",
         user_identity.sub,
         user_identity.email
@@ -105,7 +107,7 @@ pub async fn authorize(
         .insert(auth_code.clone(), user_identity)
         .await;
 
-    tracing::info!("Issued authorization code for client: {}", params.client_id);
+    tracing::info!(audit = true, "Issued authorization code for client: {}", params.client_id);
     let redirect_url = format!("{}?code={}", params.redirect_uri, auth_code);
     Redirect::to(&redirect_url).into_response()
 }
