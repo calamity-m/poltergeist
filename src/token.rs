@@ -2,7 +2,7 @@
 //!
 //! Handles the exchange of authorization codes (or client credentials) for access and ID tokens.
 
-use crate::minted::DownstreamClaims;
+use crate::downstream::{self, DownstreamClaims};
 use crate::{AppState, upstream};
 use axum::Json;
 use axum::extract::State;
@@ -102,24 +102,8 @@ async fn handle_authorization_code(
         user_identity.sub
     );
 
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
-    let expires_in = state.settings.token_expires_in;
-
-    let aud = client.audience.clone();
-
-    tracing::debug!("Issuing tokens with audience: {}", aud);
-
-    let claims = DownstreamClaims {
-        sub: user_identity.sub.clone(),
-        aud: aud.to_string(),
-        client_id,
-        iss: state.settings.issuer.clone(),
-        iat: now,
-        exp: now + expires_in,
-    };
+    let claims =
+        downstream::create_downstream_claims_for_public(&state, client, user_identity).await;
 
     let mut header = Header::new(jsonwebtoken::Algorithm::RS256);
     header.kid = Some("poltergeist".to_string());
@@ -129,16 +113,12 @@ async fn handle_authorization_code(
         (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
     })?;
 
-    tracing::info!(
-        audit = true,
-        "Tokens successfully issued for client: {}",
-        user_identity.client_id
-    );
+    tracing::info!(audit = true, "Tokens successfully issued for client");
 
     Ok(Json(TokenResponse {
         access_token: token_string.clone(),
         id_token: token_string,
-        expires_in,
+        expires_in: state.settings.token_expires_in,
     }))
 }
 
@@ -186,24 +166,7 @@ async fn handle_client_credentials(
             )
         })?;
 
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
-    let expires_in = state.settings.token_expires_in;
-
-    let aud = client.audience.clone();
-
-    tracing::debug!("Issuing M2M tokens with audience: {}", aud);
-
-    let claims = DownstreamClaims {
-        sub: client.client_id.clone(),
-        aud,
-        client_id,
-        iss: state.settings.issuer.clone(),
-        iat: now,
-        exp: now + expires_in,
-    };
+    let claims = downstream::create_downstream_claims_for_private(&state, client).await;
 
     let mut header = Header::new(jsonwebtoken::Algorithm::RS256);
     header.kid = Some("poltergeist".to_string());
@@ -218,7 +181,7 @@ async fn handle_client_credentials(
     Ok(Json(TokenResponse {
         access_token: token_string.clone(),
         id_token: token_string, // For client_credentials, we often return the same token or similar
-        expires_in,
+        expires_in: state.settings.token_expires_in,
     }))
 }
 

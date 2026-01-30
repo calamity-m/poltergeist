@@ -6,7 +6,7 @@ use jsonwebtoken::{DecodingKey, Validation, decode, decode_header};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-/// Claims from the upstream IDP that will carry over into the newly minted token
+/// Claims from the upstream IDP
 #[derive(Debug, Deserialize, Serialize)]
 pub struct UpstreamClaims {
     pub sub: String,

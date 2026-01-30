@@ -20,9 +20,9 @@ use std::time::Duration;
 
 mod authorize;
 mod config;
+mod downstream;
 mod jwks;
 mod key;
-mod minted;
 mod token;
 mod upstream;
 
