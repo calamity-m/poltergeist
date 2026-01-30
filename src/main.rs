@@ -1,16 +1,16 @@
-//! Poltergeist: A "Performative" OIDC Shim for Camunda 8.
+//! Poltergeist: A "Performative" OIDC Shim.
 //!
 //! This application serves as a lightweight OIDC provider that bridges authentication
-//! from an upstream source (e.g., an Ingress controller) to meet Camunda 8's requirements.
+//! from an upstream source (e.g., an Ingress controller).
 //!
 //! It implements standard OIDC endpoints (`/authorize`, `/token`, `/jwks`, `/.well-known/openid-configuration`)
 //! and uses in-memory caching for state management.
 
 use axum::{
+    Router,
     extract::State,
     response::Json,
     routing::{get, post},
-    Router,
 };
 use moka::future::Cache;
 use serde::{Deserialize, Serialize};

@@ -1,14 +1,14 @@
 # Poltergeist
 
-**The "Performative" OIDC Shim for Camunda 8**
+**The "Performative" OIDC Shim**
 
-Ghosted is a lightweight, stateless OIDC stub written in Rust. It exists solely to satisfy Camunda 8's strict OIDC requirements by bridging an existing Ingress authentication context.
+Ghosted is a lightweight, stateless OIDC stub written in Rust. It exists solely to satisfy some tools strict OIDC requirements by bridging an existing Ingress authentication context.
 
 ## Overview
 
-* **The Problem:** Camunda requires an OIDC Provider (Issuer, Token, JWKS). The corporate Identity Provider refuses to support public clients or the specific claims Camunda needs.
+* **The Problem:** some tools requires an OIDC Provider (Issuer, Token, JWKS). The corporate Identity Provider refuses to support public clients or the specific claims some tools needs.
 * **The Reality:** All traffic arrives via an Ingress Gateway. Requests are *already* authenticated. The Ingress injects the upstream JWT into the `Authorization` header.
-* **The Solution:** Ghosted acts as a "Yes Man." It accepts the upstream header, pretends to perform an OIDC login flow (to satisfy the Camunda SPA), and re-signs the upstream identity into a format Camunda accepts.
+* **The Solution:** Ghosted acts as a "Yes Man." It accepts the upstream header, pretends to perform an OIDC login flow (to satisfy the some tools SPA), and re-signs the upstream identity into a format some tools accepts.
 
 ## Features
 
@@ -20,7 +20,7 @@ Ghosted is a lightweight, stateless OIDC stub written in Rust. It exists solely 
     - `/token`: Exchanges auth codes for ID and Access tokens signed by Poltergeist.
     - `/jwks`: Exposes the public key for token verification.
 - **Upstream Token Validation:** Can optionally validate upstream JWTs against a remote JWKS.
-- **Performative Auth Flow:** Seamlessly bridges the existing authentication from the Ingress to Camunda's OIDC flow.
+- **Performative Auth Flow:** Seamlessly bridges the existing authentication from the Ingress to some tools's OIDC flow.
 
 ## Configuration
 
