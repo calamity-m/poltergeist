@@ -92,8 +92,8 @@ async fn main() {
                         .level(Level::INFO),
                 ),
         )
-        .layer(middleware::AuditLayer::default())
-        .layer(middleware::TraceParentLayer::default())
+        .layer(middleware::AuditLayer)
+        .layer(middleware::TraceParentLayer)
         .with_state(shared_state.clone());
 
     // run our app with hyper
