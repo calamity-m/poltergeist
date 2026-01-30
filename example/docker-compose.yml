@@ -22,22 +22,24 @@ services:
       - poltergeist
 
   downstream-app:
-    image: curlimages/curl
+    image: alpine
     command: >
-      sh -c "sleep 5 &&
-             echo '\n1. Fetching OIDC Configuration...' &&
-             curl -s http://ingress-proxy/.well-known/openid-configuration | json_pp &&
-             echo '\n2. Performing M2M Token Exchange (Client Credentials)...' &&
+      sh -c "apk add --no-core curl jq &&
+             sleep 5 &&
+             echo '--- 1. Fetching OIDC Configuration ---' &&
+             curl -s http://ingress-proxy/.well-known/openid-configuration | jq . &&
+             echo '\n--- 2. Performing M2M Token Exchange (Client Credentials) ---' &&
              curl -s -X POST http://ingress-proxy/token \
                   -H 'Content-Type: application/json' \
-                  -d '{\"grant_type\": \"client_credentials\", \"client_id\": \"example-client\", \"client_secret\": \"example-secret\"}' | json_pp &&
-             echo '\n3. Performing Authorization Code Flow...' &&
-             echo '   a. Requesting Authorization Code...' &&
-             CODE=$(curl -s -I \"http://ingress-proxy/authorize?client_id=example-app&response_type=code&redirect_uri=http://localhost/callback&code_challenge=xyz\" | grep -i location | sed -n 's/.*code=\([^& ]*\).*/\1/p' | tr -d '\r') &&
-             echo \"   b. Received Code: $CODE\" &&
-             echo '   c. Exchanging Code for Tokens...' &&
+                  -d '{\"grant_type\": \"client_credentials\", \"client_id\": \"example-client\", \"client_secret\": \"example-secret\"}' | jq . &&
+             echo '\n--- 3. Performing Authorization Code Flow ---' &&
+             echo 'a. Requesting Authorization Code...' &&
+             CODE=$(curl -s -I "http://ingress-proxy/authorize?client_id=example-app&response_type=code&redirect_uri=http://localhost/callback&code_challenge=xyz" | grep -i location | sed -n 's/.*code=\(.& 23*
+.*\)/\1/p' | tr -d '\r') &&
+             echo "b. Received Code: $CODE" &&
+             echo 'c. Exchanging Code for Tokens...' &&
              curl -s -X POST http://ingress-proxy/token \
                   -H 'Content-Type: application/json' \
-                  -d \"{\\\"grant_type\\\": \\\"authorization_code\\\", \\\"client_id\\\": \\\"example-app\\\", \\\"code\\\": \\\"$CODE\\\"}\" | json_pp"
+                  -d "{\"grant_type\": \"authorization_code\", \"client_id\": \"example-app\", \"code\": \"$CODE\"}" | jq ."
     depends_on:
       - ingress-proxy
