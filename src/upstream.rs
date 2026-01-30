@@ -1,8 +1,8 @@
 use crate::AppState;
 use crate::UserIdentity;
 use crate::jwks::Jwks;
-use axum::http::{header, HeaderMap, StatusCode};
-use jsonwebtoken::{decode, decode_header, DecodingKey, Validation};
+use axum::http::{HeaderMap, StatusCode, header};
+use jsonwebtoken::{DecodingKey, Validation, decode, decode_header};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -11,7 +11,6 @@ use std::sync::Arc;
 pub struct UpstreamClaims {
     pub sub: String,
     pub email: String,
-    pub groups: Vec<String>,
     pub exp: u64,
 }
 
@@ -27,27 +26,32 @@ pub async fn get_upstream_identity(
         Some(token) => token,
         None => {
             tracing::info!(audit = true, "No Authorization header found");
-            return Err((StatusCode::UNAUTHORIZED, "Missing Authorization header".to_string()));
+            return Err((
+                StatusCode::UNAUTHORIZED,
+                "Missing Authorization header".to_string(),
+            ));
         }
     };
 
     if state.settings.validate_upstream_token {
         tracing::debug!("Validating upstream token against JWKS");
-        decode_token_with_validation(
-            state,
-            upstream_token,
-            &state.settings.upstream_jwks_url,
-        )
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to validate upstream token: {}", e);
-            (StatusCode::UNAUTHORIZED, "Invalid upstream token".to_string())
-        })
+        decode_token_with_validation(state, upstream_token, &state.settings.upstream_jwks_url)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to validate upstream token: {}", e);
+                (
+                    StatusCode::UNAUTHORIZED,
+                    "Invalid upstream token".to_string(),
+                )
+            })
     } else {
         tracing::debug!("Decoding upstream token without signature validation");
         decode_token_without_validation(upstream_token).map_err(|e| {
             tracing::error!("Failed to decode upstream token: {}", e);
-            (StatusCode::BAD_REQUEST, "Invalid upstream token".to_string())
+            (
+                StatusCode::BAD_REQUEST,
+                "Invalid upstream token".to_string(),
+            )
         })
     }
 }
@@ -84,7 +88,6 @@ async fn decode_token_with_validation(
     Ok(UserIdentity {
         sub: decoded.claims.sub,
         email: decoded.claims.email,
-        groups: decoded.claims.groups,
         client_id: "".to_string(),
     })
 }
@@ -94,7 +97,6 @@ fn decode_token_without_validation(token: &str) -> Result<UserIdentity, anyhow::
     Ok(UserIdentity {
         sub: decoded.claims.sub,
         email: decoded.claims.email,
-        groups: decoded.claims.groups,
         client_id: "".to_string(),
     })
 }

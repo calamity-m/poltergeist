@@ -44,11 +44,9 @@ pub struct StaticClient {
     pub client_id: String,
     /// The client's secret.
     pub client_secret: String,
-    /// The groups (permissions) associated with this client.
-    pub groups: Vec<String>,
     /// The audience to be included in the tokens issued for this client.
     /// If not provided, a default might be used.
-    pub audience: Option<String>,
+    pub audience: String,
     /// The type of client (public or private).
     pub client_type: ClientType,
 }

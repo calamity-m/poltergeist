@@ -42,8 +42,6 @@ pub struct UserIdentity {
     pub sub: String,
     /// User's email address.
     pub email: String,
-    /// List of groups the user belongs to.
-    pub groups: Vec<String>,
     /// The client ID that initiated the authorization request.
     pub client_id: String,
 }

@@ -2,11 +2,11 @@
 //!
 //! Handles the exchange of authorization codes (or client credentials) for access and ID tokens.
 
-use crate::{upstream, AppState};
+use crate::{AppState, upstream};
+use axum::Json;
 use axum::extract::State;
 use axum::http::{HeaderMap, StatusCode};
-use axum::Json;
-use jsonwebtoken::{encode, Header};
+use jsonwebtoken::{Header, encode};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -45,14 +45,14 @@ pub struct Claims {
     pub sub: String,
     /// Audience.
     pub aud: String,
+    /// Client ID
+    pub client_id: String,
     /// Issuer.
     pub iss: String,
     /// Expiration time (UNIX timestamp).
     pub exp: u64,
     /// Issued at (UNIX timestamp).
     pub iat: u64,
-    /// List of groups/permissions.
-    pub groups: Vec<String>,
 }
 
 /// Handler for the `/token` endpoint.
@@ -64,7 +64,11 @@ pub async fn token(
     headers: HeaderMap,
     Json(payload): Json<TokenRequest>,
 ) -> Result<Json<TokenResponse>, (StatusCode, String)> {
-    tracing::info!(audit = true, "Received token request: grant_type={}", payload.grant_type);
+    tracing::info!(
+        audit = true,
+        "Received token request: grant_type={}",
+        payload.grant_type
+    );
     match payload.grant_type.as_str() {
         "client_credentials" => handle_client_credentials(state, payload).await,
         "authorization_code" => handle_authorization_code(state, headers, payload).await,
@@ -84,28 +88,34 @@ async fn handle_authorization_code(
     headers: HeaderMap,
     payload: TokenRequest,
 ) -> Result<Json<TokenResponse>, (StatusCode, String)> {
-    // We ignore the code parameter because this is a "performative" shim.
-    // The actual identity comes from the Authorization header injected by the gateway.
-    let mut user_identity = upstream::get_upstream_identity(&state, &headers).await?;
-    
-    // Use the client_id from the request if provided
-    if let Some(client_id) = &payload.client_id {
-        user_identity.client_id = client_id.clone();
-    }
+    // First ensure we're using a valid client
 
-    tracing::info!(
-        audit = true,
-        "Exchanging code (performative) for client: {}, subject: {}",
-        user_identity.client_id,
-        user_identity.sub
-    );
+    let client_id = payload
+        .client_id
+        .ok_or_else(|| (StatusCode::BAD_REQUEST, "no client_id provided".to_string()))?;
 
-    // Find the client to get its configured audience
     let client = state
         .settings
         .clients
         .iter()
-        .find(|c| c.client_id == user_identity.client_id);
+        .find(|c| c.client_id == client_id)
+        .ok_or_else(|| {
+            (
+                StatusCode::BAD_REQUEST,
+                format!("{} is not a valid client_id", client_id),
+            )
+        })?;
+
+    // We ignore the code parameter because this is a "performative" shim.
+    // The actual identity comes from the Authorization header injected by the gateway.
+    let mut user_identity = upstream::get_upstream_identity(&state, &headers).await?;
+
+    tracing::info!(
+        audit = true,
+        "Exchanging code (performative) for client: {}, subject: {}",
+        client_id,
+        user_identity.sub
+    );
 
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -113,19 +123,17 @@ async fn handle_authorization_code(
         .as_secs();
     let expires_in = state.settings.token_expires_in;
 
-    let aud = client
-        .and_then(|c| c.audience.clone())
-        .unwrap_or_else(|| user_identity.client_id.clone());
+    let aud = client.audience.clone();
 
     tracing::debug!("Issuing tokens with audience: {}", aud);
 
     let claims = Claims {
         sub: user_identity.sub.clone(),
-        aud,
+        aud: aud.to_string(),
+        client_id,
         iss: state.settings.issuer.clone(),
         iat: now,
         exp: now + expires_in,
-        groups: user_identity.groups.clone(),
     };
 
     let mut header = Header::new(jsonwebtoken::Algorithm::RS256);
@@ -169,7 +177,11 @@ async fn handle_client_credentials(
         )
     })?;
 
-    tracing::info!(audit = true, "Authenticating client_credentials for: {}", client_id);
+    tracing::info!(
+        audit = true,
+        "Authenticating client_credentials for: {}",
+        client_id
+    );
 
     // Find the client in the static configuration
     let client = state
@@ -178,7 +190,11 @@ async fn handle_client_credentials(
         .iter()
         .find(|c| c.client_id == client_id && c.client_secret == client_secret)
         .ok_or_else(|| {
-            tracing::warn!(audit = true, "Invalid client credentials for: {}", client_id);
+            tracing::warn!(
+                audit = true,
+                "Invalid client credentials for: {}",
+                client_id
+            );
             (
                 StatusCode::UNAUTHORIZED,
                 "invalid client credentials".to_string(),
@@ -191,20 +207,17 @@ async fn handle_client_credentials(
         .as_secs();
     let expires_in = state.settings.token_expires_in;
 
-    let aud = client
-        .audience
-        .clone()
-        .unwrap_or_else(|| client.client_id.clone());
+    let aud = client.audience.clone();
 
     tracing::debug!("Issuing M2M tokens with audience: {}", aud);
 
     let claims = Claims {
         sub: client.client_id.clone(),
         aud,
+        client_id,
         iss: state.settings.issuer.clone(),
         iat: now,
         exp: now + expires_in,
-        groups: client.groups.clone(),
     };
 
     let mut header = Header::new(jsonwebtoken::Algorithm::RS256);
@@ -215,7 +228,7 @@ async fn handle_client_credentials(
         (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
     })?;
 
-    tracing::info!(audit = true, "M2M tokens successfully issued for client: {}", client_id);
+    tracing::info!(audit = true, "M2M tokens successfully issued for client");
 
     Ok(Json(TokenResponse {
         access_token: token_string.clone(),
@@ -227,7 +240,7 @@ async fn handle_client_credentials(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{Settings, StaticClient, ClientType};
+    use crate::config::{ClientType, Settings, StaticClient};
     use crate::key::KeyState;
     use moka::future::Cache;
 
@@ -248,8 +261,7 @@ mod tests {
             clients: vec![StaticClient {
                 client_id: "test-client".to_string(),
                 client_secret: "test-secret".to_string(),
-                groups: vec!["test-group".to_string()],
-                audience: None,
+                audience: "aud".to_string(),
                 client_type: ClientType::Private,
             }],
         };
@@ -290,8 +302,7 @@ mod tests {
             clients: vec![StaticClient {
                 client_id: "test-client".to_string(),
                 client_secret: "test-secret".to_string(),
-                groups: vec!["test-group".to_string()],
-                audience: None,
+                audience: "aud".to_string(),
                 client_type: ClientType::Private,
             }],
         };
@@ -334,8 +345,7 @@ mod tests {
             clients: vec![StaticClient {
                 client_id: "test-client".to_string(),
                 client_secret: "test-secret".to_string(),
-                groups: vec!["test-group".to_string()],
-                audience: Some("custom-audience".to_string()),
+                audience: "custom-audience".to_string(),
                 client_type: ClientType::Private,
             }],
         };
@@ -355,9 +365,10 @@ mod tests {
         };
 
         let Json(response) = handle_client_credentials(state, payload).await.unwrap();
-        
-        let token_data = jsonwebtoken::dangerous::insecure_decode::<Claims>(&response.access_token).unwrap();
-        
+
+        let token_data =
+            jsonwebtoken::dangerous::insecure_decode::<Claims>(&response.access_token).unwrap();
+
         assert_eq!(token_data.claims.aud, "custom-audience");
     }
 
@@ -378,8 +389,7 @@ mod tests {
             clients: vec![StaticClient {
                 client_id: "web-app".to_string(),
                 client_secret: "secret".to_string(),
-                groups: vec![],
-                audience: Some("custom-app-aud".to_string()),
+                audience: "custom-app-aud".to_string(),
                 client_type: ClientType::Public,
             }],
         };
@@ -394,17 +404,20 @@ mod tests {
         let upstream_claims = crate::upstream::UpstreamClaims {
             sub: "test-user".to_string(),
             email: "test@example.com".to_string(),
-            groups: vec!["admin".to_string()],
             exp: 10000000000,
         };
         let upstream_token = jsonwebtoken::encode(
             &Header::default(),
             &upstream_claims,
             &jsonwebtoken::EncodingKey::from_secret("secret".as_ref()),
-        ).unwrap();
+        )
+        .unwrap();
 
         let mut headers = HeaderMap::new();
-        headers.insert("Authorization", format!("Bearer {}", upstream_token).parse().unwrap());
+        headers.insert(
+            "Authorization",
+            format!("Bearer {}", upstream_token).parse().unwrap(),
+        );
 
         let payload = TokenRequest {
             grant_type: "authorization_code".to_string(),
@@ -414,10 +427,13 @@ mod tests {
             client_secret: None,
         };
 
-        let Json(response) = handle_authorization_code(state, headers, payload).await.unwrap();
-        
-        let token_data = jsonwebtoken::dangerous::insecure_decode::<Claims>(&response.access_token).unwrap();
-        
+        let Json(response) = handle_authorization_code(state, headers, payload)
+            .await
+            .unwrap();
+
+        let token_data =
+            jsonwebtoken::dangerous::insecure_decode::<Claims>(&response.access_token).unwrap();
+
         assert_eq!(token_data.claims.aud, "custom-app-aud");
         assert_eq!(token_data.claims.sub, "test-user");
     }
@@ -439,8 +455,7 @@ mod tests {
             clients: vec![StaticClient {
                 client_id: "default-client".to_string(),
                 client_secret: "secret".to_string(),
-                groups: vec![],
-                audience: None, // No audience set
+                audience: "aud".to_string(), // No audience set
                 client_type: ClientType::Private,
             }],
         };
@@ -460,9 +475,10 @@ mod tests {
         };
 
         let Json(response) = handle_client_credentials(state, payload).await.unwrap();
-        
-        let token_data = jsonwebtoken::dangerous::insecure_decode::<Claims>(&response.access_token).unwrap();
-        
+
+        let token_data =
+            jsonwebtoken::dangerous::insecure_decode::<Claims>(&response.access_token).unwrap();
+
         assert_eq!(token_data.claims.aud, "default-client");
     }
 }

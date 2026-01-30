@@ -4,14 +4,14 @@
 //! It validates the upstream IDP's token (from the Authorization header)
 //! and, if valid, issues a temporary authorization code.
 
-use crate::{upstream, AppState};
+use crate::{AppState, upstream};
 use axum::{
     extract::{Query, State},
-    http::{header, HeaderMap},
+    http::{HeaderMap, header},
     response::{IntoResponse, Redirect},
 };
 use rand::distributions::Alphanumeric;
-use rand::{thread_rng, Rng};
+use rand::{Rng, thread_rng};
 use serde::Deserialize;
 use std::sync::Arc;
 
@@ -47,12 +47,19 @@ pub async fn authorize(
 
     // Ensure the header is present and valid
     if let Err((_, _)) = upstream::get_upstream_identity(&state, &headers).await {
-        tracing::info!(audit = true, "No valid Authorization header found, redirecting to upstream IDP");
+        tracing::info!(
+            audit = true,
+            "No valid Authorization header found, redirecting to upstream IDP"
+        );
         return Redirect::to(&state.settings.upstream_oidc_url).into_response();
     }
 
     let auth_code = generate_random_code();
-    tracing::info!(audit = true, "Issued dummy authorization code for client: {}", params.client_id);
+    tracing::info!(
+        audit = true,
+        "Issued dummy authorization code for client: {}",
+        params.client_id
+    );
     let redirect_url = format!("{}?code={}", params.redirect_uri, auth_code);
     Redirect::to(&redirect_url).into_response()
 }
@@ -69,31 +76,36 @@ fn generate_random_code() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{config, key, jwks::{Jwk, Jwks}, upstream::UpstreamClaims};
-    use wiremock::{MockServer, Mock, ResponseTemplate};
-    use wiremock::matchers::{method, path};
-    use rsa::{RsaPrivateKey, RsaPublicKey};
+    use crate::{
+        config,
+        jwks::{Jwk, Jwks},
+        key,
+        upstream::UpstreamClaims,
+    };
+    use axum::http::StatusCode;
+    use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
+    use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
     use rsa::pkcs1::EncodeRsaPrivateKey;
     use rsa::pkcs8::EncodePrivateKey;
     use rsa::traits::PublicKeyParts;
-    use jsonwebtoken::{encode, EncodingKey, Header, Algorithm};
-    use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
-    use axum::http::StatusCode;
+    use rsa::{RsaPrivateKey, RsaPublicKey};
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
 
     #[tokio::test]
     async fn test_authorize_success() {
         // 1. Setup Mock JWKS
         let mock_server = MockServer::start().await;
-        
+
         let mut rng = rand::thread_rng();
         let bits = 2048;
         let private_key = RsaPrivateKey::new(&mut rng, bits).expect("failed to generate a key");
         let public_key = RsaPublicKey::from(&private_key);
-        
+
         // Prepare JWKS response
         let n = URL_SAFE_NO_PAD.encode(public_key.n().to_bytes_be());
         let e = URL_SAFE_NO_PAD.encode(public_key.e().to_bytes_be());
-        
+
         let jwk = Jwk {
             kty: "RSA".to_string(),
             kid: "test-kid".to_string(),
@@ -103,7 +115,7 @@ mod tests {
             r#use: "sig".to_string(),
         };
         let jwks = Jwks { keys: vec![jwk] };
-        
+
         Mock::given(method("GET"))
             .and(path("/jwks.json"))
             .respond_with(ResponseTemplate::new(200).set_body_json(jwks))
@@ -124,8 +136,11 @@ mod tests {
         };
 
         let app_private_key = RsaPrivateKey::new(&mut rng, 2048).unwrap();
-        let app_private_key_pem = app_private_key.to_pkcs8_pem(Default::default()).unwrap().to_string();
-        
+        let app_private_key_pem = app_private_key
+            .to_pkcs8_pem(Default::default())
+            .unwrap()
+            .to_string();
+
         let state = Arc::new(AppState {
             settings,
             jwks_cache: moka::future::Cache::builder().build(),
@@ -136,14 +151,14 @@ mod tests {
         let claims = UpstreamClaims {
             sub: "test-user".to_string(),
             email: "test@example.com".to_string(),
-            groups: vec!["admin".to_string()],
             exp: 10000000000, // Way in the future
         };
-        
+
         let mut header = Header::new(Algorithm::RS256);
         header.kid = Some("test-kid".to_string());
-        
-        let encoding_key = EncodingKey::from_rsa_der(private_key.to_pkcs1_der().unwrap().as_bytes());
+
+        let encoding_key =
+            EncodingKey::from_rsa_der(private_key.to_pkcs1_der().unwrap().as_bytes());
         let token = encode(&header, &claims, &encoding_key).unwrap();
 
         // 4. Call Handler
@@ -153,26 +168,37 @@ mod tests {
             response_type: "code".to_string(),
             code_challenge: "challenge".to_string(),
         };
-        
-        let mut headers = HeaderMap::new();
-        headers.insert(header::AUTHORIZATION, format!("Bearer {}", token).parse().unwrap());
 
-        let response = authorize(State(state.clone()), Query(params), headers).await.into_response();
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::AUTHORIZATION,
+            format!("Bearer {}", token).parse().unwrap(),
+        );
+
+        let response = authorize(State(state.clone()), Query(params), headers)
+            .await
+            .into_response();
 
         // 5. Assertions
-        assert_eq!(response.status(), StatusCode::SEE_OTHER); 
-        
-        let location = response.headers().get("location").unwrap().to_str().unwrap();
+        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+
+        let location = response
+            .headers()
+            .get("location")
+            .unwrap()
+            .to_str()
+            .unwrap();
         assert!(location.starts_with("http://client/cb?code="));
     }
-
-
 
     #[tokio::test]
     async fn test_authorize_missing_header() {
         let mut rng = rand::thread_rng();
         let app_private_key = RsaPrivateKey::new(&mut rng, 2048).unwrap();
-        let app_private_key_pem = app_private_key.to_pkcs8_pem(Default::default()).unwrap().to_string();
+        let app_private_key_pem = app_private_key
+            .to_pkcs8_pem(Default::default())
+            .unwrap()
+            .to_string();
 
         let settings = config::Settings {
             issuer: "http://localhost:8080".to_string(),
@@ -201,9 +227,19 @@ mod tests {
 
         let headers = HeaderMap::new(); // No Authorization header
 
-        let response = authorize(State(state.clone()), Query(params), headers).await.into_response();
+        let response = authorize(State(state.clone()), Query(params), headers)
+            .await
+            .into_response();
 
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
-        assert_eq!(response.headers().get("location").unwrap().to_str().unwrap(), "http://upstream-login");
+        assert_eq!(
+            response
+                .headers()
+                .get("location")
+                .unwrap()
+                .to_str()
+                .unwrap(),
+            "http://upstream-login"
+        );
     }
 }

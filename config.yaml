@@ -11,12 +11,9 @@ token_expires_in: 3600
 clients:
   - client_id: "backend-service"
     client_secret: "service-secret"
-    groups:
-      - "admin"
     audience: "internal-api"
     client_type: private
   - client_id: "frontend-app"
     client_secret: "public"
-    groups: []
     audience: "user-profile-api"
     client_type: public
