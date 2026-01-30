@@ -79,15 +79,12 @@ async fn handle_authorization_code(
     state: Arc<AppState>,
     payload: TokenRequest,
 ) -> Result<Json<TokenResponse>, (StatusCode, String)> {
-    // First ensure we're using a valid client
-    let client_id = &payload.client_id;
-
     // Try to find as public client first
     let public_client = state
         .settings
         .public_clients
         .iter()
-        .find(|c| c.client_id == *client_id);
+        .find(|c| c.client_id == payload.client_id);
 
     let aud = if let Some(c) = public_client {
         c.audience.clone()
@@ -97,11 +94,11 @@ async fn handle_authorization_code(
             .settings
             .private_clients
             .iter()
-            .find(|c| c.client_id == *client_id)
+            .find(|c| c.client_id == payload.client_id)
             .ok_or_else(|| {
                 (
                     StatusCode::BAD_REQUEST,
-                    format!("{} is not a valid client_id", client_id),
+                    format!("{} is not a valid client_id", payload.client_id),
                 )
             })?;
 
@@ -128,18 +125,19 @@ async fn handle_authorization_code(
         .code
         .ok_or_else(|| (StatusCode::BAD_REQUEST, "no code provided".to_string()))?;
 
-    let upstream_claims = state
-        .auth_code_cache
-        .get(&code)
-        .await
-        .ok_or_else(|| (StatusCode::BAD_REQUEST, "invalid or expired code".to_string()))?;
+    let upstream_claims = state.auth_code_cache.get(&code).await.ok_or_else(|| {
+        (
+            StatusCode::BAD_REQUEST,
+            "invalid or expired code".to_string(),
+        )
+    })?;
 
     // Success! remove it from cache (single use)
     state.auth_code_cache.invalidate(&code).await;
 
     tracing::info!(
         "Exchanging code (performative) for client: {}, subject: {}",
-        client_id,
+        payload.client_id,
         upstream_claims.sub
     );
 
@@ -148,7 +146,7 @@ async fn handle_authorization_code(
     let claims = downstream::create_downstream_claims(
         state.settings.issuer.clone(),
         state.settings.token_expires_in,
-        client_id.clone(),
+        payload.client_id,
         aud,
         upstream_claims.sub,
     );
@@ -163,7 +161,7 @@ async fn handle_authorization_code(
 
     let expires_in = state.settings.token_expires_in;
 
-    tracing::info!("Tokens successfully issued for client: {}", client_id);
+    tracing::info!("Tokens successfully issued for client");
 
     Ok(Json(TokenResponse {
         access_token: token_string.clone(),
@@ -177,7 +175,6 @@ async fn handle_client_credentials(
     state: Arc<AppState>,
     payload: TokenRequest,
 ) -> Result<Json<TokenResponse>, (StatusCode, String)> {
-    let client_id = &payload.client_id;
     let client_secret = payload.client_secret.as_ref().ok_or_else(|| {
         tracing::warn!("Missing client_secret for client_credentials grant");
         (
@@ -186,16 +183,19 @@ async fn handle_client_credentials(
         )
     })?;
 
-    tracing::info!("Authenticating client_credentials for: {}", client_id);
+    tracing::info!(
+        "Authenticating client_credentials for: {}",
+        payload.client_id
+    );
 
     // Find the client in the static configuration
     let client = state
         .settings
         .private_clients
         .iter()
-        .find(|c| c.client_id == *client_id && c.client_secret == *client_secret)
+        .find(|c| c.client_id == payload.client_id && c.client_secret == *client_secret)
         .ok_or_else(|| {
-            tracing::warn!("Invalid client credentials for: {}", client_id);
+            tracing::warn!("Invalid client credentials for: {}", payload.client_id);
             (
                 StatusCode::UNAUTHORIZED,
                 "invalid client credentials".to_string(),
