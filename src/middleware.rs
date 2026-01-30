@@ -67,12 +67,20 @@ where
 
         let endpoint = req.uri().path().to_string();
         let http_method = req.method().to_string();
+        let host = req
+            .headers()
+            .get("x-forwarded-host")
+            .and_then(|h| h.to_str().ok())
+            .or_else(|| req.headers().get("host").and_then(|h| h.to_str().ok()))
+            .unwrap_or("")
+            .to_string();
 
         let app_root = span!(
             tracing::Level::INFO,
             "request",
             endpoint = %endpoint,
-            httpMethod = %http_method
+            httpMethod = %http_method,
+            host = %host
         );
 
         if let Err(err) = app_root.set_parent(parent_context) {
