@@ -59,6 +59,43 @@ private_key_path: "test/private_key.pem"
 -   `POST /token`: Token exchange endpoint.
 -   `GET /jwks`: JSON Web Key Set endpoint.
 
+## Usage Examples
+
+### 1. Discovery
+```bash
+curl -s http://localhost:8080/.well-known/openid-configuration | jq
+```
+
+### 2. Authorization (Browser Flow Simulation)
+To simulate the first step, provide an upstream token in the `Authorization` header:
+```bash
+# This will return a 303 Redirect with a ?code=... in the Location header
+curl -i "http://localhost:8080/authorize?client_id=frontend-app&redirect_uri=http://callback&response_type=code&code_challenge=foo" \
+     -H "Authorization: Bearer <YOUR_UPSTREAM_JWT>"
+```
+
+### 3. Token Exchange (Authorization Code)
+```bash
+curl -X POST http://localhost:8080/token \
+     -H "Content-Type: application/json" \
+     -d '{
+       "grant_type": "authorization_code",
+       "code": "<CODE_FROM_PREVIOUS_STEP>",
+       "client_id": "frontend-app"
+     }' | jq
+```
+
+### 4. M2M Token (Client Credentials)
+```bash
+curl -X POST http://localhost:8080/token \
+     -H "Content-Type: application/json" \
+     -d '{
+       "grant_type": "client_credentials",
+       "client_id": "backend-service",
+       "client_secret": "service-secret"
+     }' | jq
+```
+
 ## Development
 
 -   **Tests:** The project includes a test suite. Run them with:
