@@ -2,7 +2,6 @@
 //!
 //! Handles the exchange of authorization codes (or client credentials) for access and ID tokens.
 
-use crate::config::ClientType;
 use crate::minted::DownstreamClaims;
 use crate::{AppState, upstream};
 use axum::Json;
@@ -93,7 +92,8 @@ async fn handle_authorization_code(
 
     // We ignore the code parameter because this is a "performative" shim.
     // The actual identity comes from the Authorization header injected by the gateway.
-    let user_identity = upstream::get_upstream_identity(&state, &headers).await?;
+    let mut user_identity = upstream::get_upstream_identity(&state, &headers).await?;
+    user_identity.client_id = client_id.clone();
 
     tracing::info!(
         audit = true,
@@ -225,7 +225,7 @@ async fn handle_client_credentials(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{ClientType, PrivateClient, PublicClient, Settings};
+    use crate::config::{PrivateClient, PublicClient, Settings};
     use crate::key::KeyState;
     use moka::future::Cache;
 
@@ -389,6 +389,7 @@ mod tests {
         let upstream_claims = crate::upstream::UpstreamClaims {
             sub: "test-user".to_string(),
             email: "test@example.com".to_string(),
+            exp: 10000000000,
         };
         let upstream_token = jsonwebtoken::encode(
             &Header::default(),

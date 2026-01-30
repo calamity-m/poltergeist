@@ -11,6 +11,7 @@ use std::sync::Arc;
 pub struct UpstreamClaims {
     pub sub: String,
     pub email: String,
+    pub exp: u64,
 }
 
 pub async fn get_upstream_identity(

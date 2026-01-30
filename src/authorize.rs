@@ -7,7 +7,7 @@
 use crate::{AppState, upstream};
 use axum::{
     extract::{Query, State},
-    http::{HeaderMap, header},
+    http::{HeaderMap, header, StatusCode},
     response::{IntoResponse, Redirect},
 };
 use rand::distributions::Alphanumeric;
@@ -45,6 +45,21 @@ pub async fn authorize(
         params.client_id
     );
 
+    // Validate client_id
+    if !state
+        .settings
+        .public_clients
+        .iter()
+        .any(|c| c.client_id == params.client_id)
+    {
+        tracing::warn!(
+            audit = true,
+            "Invalid client_id: {}",
+            params.client_id
+        );
+        return (StatusCode::BAD_REQUEST, "Invalid client_id").into_response();
+    }
+
     // Ensure the header is present and valid
     if let Err((_, _)) = upstream::get_upstream_identity(&state, &headers).await {
         tracing::info!(
@@ -77,7 +92,7 @@ fn generate_random_code() -> String {
 mod tests {
     use super::*;
     use crate::{
-        config::{self, ClientType, PrivateClient, PublicClient},
+        config::{self, PublicClient},
         jwks::{Jwk, Jwks},
         key,
         upstream::UpstreamClaims,
@@ -155,6 +170,7 @@ mod tests {
         let claims = UpstreamClaims {
             sub: "test-user".to_string(),
             email: "test@example.com".to_string(),
+            exp: 10000000000, // far in the future
         };
 
         let mut header = Header::new(Algorithm::RS256);

@@ -32,13 +32,6 @@ pub struct Settings {
     pub public_clients: Vec<PublicClient>,
 }
 
-#[derive(Clone, Deserialize, Debug, PartialEq)]
-#[serde(rename_all = "snake_case")]
-pub enum ClientType {
-    Public,
-    Private,
-}
-
 /// Represents a static OAuth2 client for service-to-service communication.
 #[derive(Clone, Deserialize)]
 pub struct PrivateClient {
