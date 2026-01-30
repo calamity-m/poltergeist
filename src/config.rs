@@ -180,4 +180,26 @@ mod tests {
             env::remove_var("POLTERGEIST_ISSUER");
         }
     }
+
+    #[test]
+    fn test_load_config_telemetry_env_override() {
+        unsafe {
+            env::set_var("POLTERGEIST_TELEMETRY__LEVEL", "debug");
+            env::set_var("POLTERGEIST_TELEMETRY__SERVICE_NAME", "env-service");
+            env::set_var("POLTERGEIST_TELEMETRY__OTLP_ENABLED", "true");
+        }
+
+        let settings = load_config();
+
+        assert!(matches!(settings.telemetry.level, LogLevel::Debug));
+        assert_eq!(settings.telemetry.service_name, "env-service");
+        assert!(settings.telemetry.otlp_enabled);
+
+        // Clean up
+        unsafe {
+            env::remove_var("POLTERGEIST_TELEMETRY__LEVEL");
+            env::remove_var("POLTERGEIST_TELEMETRY__SERVICE_NAME");
+            env::remove_var("POLTERGEIST_TELEMETRY__OTLP_ENABLED");
+        }
+    }
 }
