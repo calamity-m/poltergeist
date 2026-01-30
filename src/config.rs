@@ -24,6 +24,19 @@ pub struct Settings {
     pub validate_upstream_token: bool,
     /// Path to the RSA private key (PEM format) used for signing tokens.
     pub private_key_path: String,
+    /// Static clients for M2M (client_credentials) flow.
+    pub clients: Vec<StaticClient>,
+}
+
+/// Represents a static OAuth2 client for service-to-service communication.
+#[derive(Clone, Deserialize)]
+pub struct StaticClient {
+    /// The client's unique identifier.
+    pub client_id: String,
+    /// The client's secret.
+    pub client_secret: String,
+    /// The groups (permissions) associated with this client.
+    pub groups: Vec<String>,
 }
 
 /// Loads configuration from the `config.yaml` file.

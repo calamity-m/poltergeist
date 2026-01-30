@@ -4,9 +4,12 @@
 
 use crate::AppState;
 use axum::extract::State;
+use axum::http::StatusCode;
 use axum::Json;
+use jsonwebtoken::{encode, Header};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Parameters for the token exchange request.
 #[derive(Deserialize)]
@@ -25,7 +28,7 @@ pub struct TokenRequest {
 }
 
 /// The response containing the issued tokens.
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 pub struct TokenResponse {
     /// The access token (JWT).
     access_token: String,
@@ -35,28 +38,181 @@ pub struct TokenResponse {
     expires_in: u64,
 }
 
+/// JWT claims for the tokens issued by Poltergeist.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Claims {
+    /// Subject identifier.
+    pub sub: String,
+    /// Audience.
+    pub aud: String,
+    /// Issuer.
+    pub iss: String,
+    /// Expiration time (UNIX timestamp).
+    pub exp: u64,
+    /// Issued at (UNIX timestamp).
+    pub iat: u64,
+    /// List of groups/permissions.
+    pub groups: Vec<String>,
+}
+
 /// Handler for the `/token` endpoint.
 ///
-/// **TODO:** Implement the full token exchange logic.
-/// Currently returns a placeholder stub response.
-///
-/// Expected flow:
-/// 1.  Validate the `grant_type`.
-/// 2.  If `authorization_code`:
-///     *   Retrieve the user identity associated with the `code` from the cache.
-///     *   Mint new ID and Access tokens signed with the application's private key.
-/// 3.  If `client_credentials`:
-///     *   Validate `client_id` and `client_secret`.
-///     *   Mint a new Access token for the service account.
+/// Handles both `authorization_code` and `client_credentials` grant types.
 pub async fn token(
-    State(_state): State<Arc<AppState>>,
-    Json(_payload): Json<TokenRequest>,
-) -> Json<TokenResponse> {
-    // TODO: Implement the token exchange flow
-    let token = TokenResponse {
-        access_token: "some_access_token".to_string(),
-        id_token: "some_id_token".to_string(),
-        expires_in: 3600,
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<TokenRequest>,
+) -> Result<Json<TokenResponse>, (StatusCode, String)> {
+    match payload.grant_type.as_str() {
+        "client_credentials" => handle_client_credentials(state, payload).await,
+        "authorization_code" => {
+            // TODO: Implement authorization_code logic
+            Err((
+                StatusCode::NOT_IMPLEMENTED,
+                "authorization_code grant type not yet implemented".to_string(),
+            ))
+        }
+        _ => Err((
+            StatusCode::BAD_REQUEST,
+            format!("unsupported_grant_type: {}", payload.grant_type),
+        )),
+    }
+}
+
+async fn handle_client_credentials(
+    state: Arc<AppState>,
+    payload: TokenRequest,
+) -> Result<Json<TokenResponse>, (StatusCode, String)> {
+    let client_id = payload.client_id.ok_or((
+        StatusCode::BAD_REQUEST,
+        "missing client_id for client_credentials grant".to_string(),
+    ))?;
+    let client_secret = payload.client_secret.ok_or((
+        StatusCode::BAD_REQUEST,
+        "missing client_secret for client_credentials grant".to_string(),
+    ))?;
+
+    // Find the client in the static configuration
+    let client = state
+        .settings
+        .clients
+        .iter()
+        .find(|c| c.client_id == client_id && c.client_secret == client_secret)
+        .ok_or((StatusCode::UNAUTHORIZED, "invalid client credentials".to_string()))?;
+
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    let expires_in = 3600;
+
+    let claims = Claims {
+        sub: client.client_id.clone(),
+        aud: "camunda-web".to_string(), // Default audience for Camunda
+        iss: state.settings.issuer.clone(),
+        iat: now,
+        exp: now + expires_in,
+        groups: client.groups.clone(),
     };
-    Json(token)
+
+    let mut header = Header::new(jsonwebtoken::Algorithm::RS256);
+    header.kid = Some("poltergeist".to_string());
+
+    let token_string = encode(&header, &claims, &state.key_state.encoding_key)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    Ok(Json(TokenResponse {
+        access_token: token_string.clone(),
+        id_token: token_string, // For client_credentials, we often return the same token or similar
+        expires_in,
+    }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::{Settings, StaticClient};
+    use crate::key::KeyState;
+    use moka::future::Cache;
+
+    #[tokio::test]
+    async fn test_handle_client_credentials_success() {
+        let private_key_pem = std::fs::read_to_string("test/private_key.pem").unwrap();
+        let key_state = KeyState::new(&private_key_pem);
+
+        let settings = Settings {
+            issuer: "http://localhost:8080".to_string(),
+            grant_types_supported: vec!["client_credentials".to_string()],
+            port: 8080,
+            upstream_oidc_url: "http://upstream".to_string(),
+            upstream_jwks_url: "http://upstream/jwks".to_string(),
+            validate_upstream_token: false,
+            private_key_path: "test/private_key.pem".to_string(),
+            clients: vec![StaticClient {
+                client_id: "test-client".to_string(),
+                client_secret: "test-secret".to_string(),
+                groups: vec!["test-group".to_string()],
+            }],
+        };
+
+        let state = Arc::new(AppState {
+            settings,
+            auth_code_cache: Cache::builder().build(),
+            jwks_cache: Cache::builder().build(),
+            key_state,
+        });
+
+        let payload = TokenRequest {
+            grant_type: "client_credentials".to_string(),
+            code: None,
+            code_verifier: None,
+            client_id: Some("test-client".to_string()),
+            client_secret: Some("test-secret".to_string()),
+        };
+
+        let Json(response) = handle_client_credentials(state, payload).await.unwrap();
+        assert!(!response.access_token.is_empty());
+        assert_eq!(response.expires_in, 3600);
+    }
+
+    #[tokio::test]
+    async fn test_handle_client_credentials_invalid_secret() {
+        let private_key_pem = std::fs::read_to_string("test/private_key.pem").unwrap();
+        let key_state = KeyState::new(&private_key_pem);
+
+        let settings = Settings {
+            issuer: "http://localhost:8080".to_string(),
+            grant_types_supported: vec!["client_credentials".to_string()],
+            port: 8080,
+            upstream_oidc_url: "http://upstream".to_string(),
+            upstream_jwks_url: "http://upstream/jwks".to_string(),
+            validate_upstream_token: false,
+            private_key_path: "test/private_key.pem".to_string(),
+            clients: vec![StaticClient {
+                client_id: "test-client".to_string(),
+                client_secret: "test-secret".to_string(),
+                groups: vec!["test-group".to_string()],
+            }],
+        };
+
+        let state = Arc::new(AppState {
+            settings,
+            auth_code_cache: Cache::builder().build(),
+            jwks_cache: Cache::builder().build(),
+            key_state,
+        });
+
+        let payload = TokenRequest {
+            grant_type: "client_credentials".to_string(),
+            code: None,
+            code_verifier: None,
+            client_id: Some("test-client".to_string()),
+            client_secret: Some("wrong-secret".to_string()),
+        };
+
+        let result = handle_client_credentials(state, payload).await;
+        assert!(result.is_err());
+        let (status, msg) = result.unwrap_err();
+        assert_eq!(status, StatusCode::UNAUTHORIZED);
+        assert_eq!(msg, "invalid client credentials");
+    }
 }

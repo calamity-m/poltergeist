@@ -207,7 +207,8 @@ mod tests {
             upstream_oidc_url: "http://upstream".to_string(),
             upstream_jwks_url: format!("{}/jwks.json", mock_server.uri()),
             validate_upstream_token: true,
-            private_key_path: "test/private_key.pem".to_string(), 
+            private_key_path: "test/private_key.pem".to_string(),
+            clients: vec![],
         };
 
         let app_private_key = RsaPrivateKey::new(&mut rng, 2048).unwrap();
@@ -274,6 +275,7 @@ mod tests {
             upstream_jwks_url: "".to_string(),
             validate_upstream_token: true,
             private_key_path: "test/private_key.pem".to_string(),
+            clients: vec![],
         };
 
         let state = Arc::new(AppState {
