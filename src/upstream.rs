@@ -20,7 +20,7 @@ pub async fn get_upstream_identity(
     let auth_header = match headers.get(header::AUTHORIZATION) {
         Some(h) => h,
         None => {
-            crate::audit!("No Authorization header found");
+            tracing::info!("No Authorization header found");
             return Err((StatusCode::UNAUTHORIZED, "missing authorization header".to_string()));
         }
     };

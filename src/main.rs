@@ -20,7 +20,6 @@ use std::time::Duration;
 use tower_http::trace::{DefaultOnFailure, DefaultOnRequest, DefaultOnResponse};
 use tracing::Level;
 
-mod audit;
 mod authorize;
 mod config;
 mod downstream;

@@ -5,10 +5,10 @@ use std::{
 
 use axum::{extract::Request, http::HeaderMap, response::Response};
 use opentelemetry::propagation::Extractor;
+use std::future::Future;
 use tower::{Layer, Service};
 use tracing::{Instrument, info, span, warn};
 use tracing_opentelemetry::OpenTelemetrySpanExt;
-use std::future::Future;
 
 pub const REQUEST_ID_HEADER: &str = "x-request-id";
 
@@ -101,13 +101,7 @@ where
             .unwrap_or("")
             .to_string();
 
-        let app_root = span!(
-            tracing::Level::INFO,
-            "request",
-            endpoint = %endpoint,
-            httpMethod = %http_method,
-            host = %host
-        );
+        let app_root = span!(tracing::Level::INFO, "request");
 
         if let Err(err) = app_root.set_parent(parent_context) {
             warn!(
@@ -130,7 +124,26 @@ where
         let fut = self.inner.call(req);
         Box::pin(async move {
             REQUEST_CONTEXT.scope(ctx, async move {
-                fut.instrument(app_root).await
+                let response: Result<Self::Response, Self::Error> =
+                    fut.instrument(app_root).await;
+
+                if let Ok(ref res) = response {
+                    let status = res.status();
+                    with_request_info(|ctx| {
+                        tracing::info!(
+                            audit = true,
+                            auditType = "authentication",
+                            endpoint = %ctx.endpoint,
+                            host = %ctx.host,
+                            httpMethod = %ctx.method,
+                            status = %status.as_u16(),
+                            "request to {} finished",
+                            ctx.endpoint
+                        );
+                    });
+                }
+
+                response
             }).await
         })
     }
