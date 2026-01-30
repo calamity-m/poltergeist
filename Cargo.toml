@@ -27,6 +27,8 @@ tracing-serde = "0.2.0"
 tracing-attributes = "0.1.31"
 tracing-opentelemetry = "0.32.1"
 opentelemetry-semantic-conventions = "0.31.0"
+tower = "0.5.3"
+tower-http = { version = "0.6.8", features = ["request-id", "trace"] }
 
 [dev-dependencies]
 wiremock = "0.6.2"

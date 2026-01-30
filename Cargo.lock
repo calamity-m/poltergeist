@@ -1716,6 +1716,8 @@ dependencies = [
  "serde_json",
  "sha2",
  "tokio",
+ "tower",
+ "tower-http",
  "tracing",
  "tracing-attributes",
  "tracing-opentelemetry",
@@ -2806,6 +2808,8 @@ dependencies = [
  "tower",
  "tower-layer",
  "tower-service",
+ "tracing",
+ "uuid",
 ]
 
 [[package]]

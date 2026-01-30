@@ -17,13 +17,16 @@ use serde::Serialize;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
+use tower_http::trace::{DefaultOnFailure, DefaultOnRequest, DefaultOnResponse};
+use tracing::Level;
 
-mod authorize;
 mod audit;
+mod authorize;
 mod config;
 mod downstream;
 mod jwks;
 mod key;
+mod middleware;
 mod telemetry;
 mod token;
 mod upstream;
@@ -80,6 +83,17 @@ async fn main() {
         .route("/authorize", get(authorize::authorize))
         .route("/token", post(token::token))
         .route("/jwks", get(jwks::jwks))
+        .layer(
+            tower_http::trace::TraceLayer::new_for_http()
+                .on_failure(DefaultOnFailure::new().level(Level::ERROR))
+                .on_request(DefaultOnRequest::new().level(Level::INFO))
+                .on_response(
+                    DefaultOnResponse::new()
+                        .include_headers(true)
+                        .level(Level::INFO),
+                ),
+        )
+        .layer(middleware::TraceParentLayer::default())
         .with_state(shared_state.clone());
 
     // run our app with hyper
