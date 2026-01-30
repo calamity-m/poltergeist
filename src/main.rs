@@ -97,7 +97,7 @@ async fn main() {
         .with_state(shared_state.clone());
 
     // run our app with hyper
-    let addr = SocketAddr::from(([127, 0, 0, 1], shared_state.settings.port));
+    let addr = SocketAddr::from(([0, 0, 0, 0], shared_state.settings.port));
     tracing::info!("Listening on http://{}", addr);
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
