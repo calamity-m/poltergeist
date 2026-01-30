@@ -19,6 +19,6 @@ pub struct Jwk {
     pub r#use: String,
 }
 
-pub async fn jwks(State(state): State<Arc<AppState>>) -> Json<String> {
+pub async fn jwks(State(state): State<Arc<AppState>>) -> Json<Jwks> {
     Json(state.key_state.jwks_json.clone())
 }

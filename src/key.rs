@@ -8,7 +8,7 @@ use rsa::{RsaPrivateKey, RsaPublicKey};
 #[derive(Clone)]
 pub struct KeyState {
     pub encoding_key: EncodingKey, // For jsonwebtoken signing
-    pub jwks_json: String,         // Pre-computed JWKS response
+    pub jwks_json: Jwks,           // Pre-computed JWKS response
 }
 
 impl KeyState {
@@ -32,13 +32,13 @@ impl KeyState {
     }
 }
 
-fn generate_jwks_json(public_key: &RsaPublicKey, kid: &str) -> String {
+fn generate_jwks_json(public_key: &RsaPublicKey, kid: &str) -> Jwks {
     // 3. Extract components for OIDC JWKS (Base64URL encoded)
     let n = URL_SAFE_NO_PAD.encode(public_key.n().to_bytes_be());
     let e = URL_SAFE_NO_PAD.encode(public_key.e().to_bytes_be());
 
     // 4. Construct the JSON Web Key Set
-    let jwks = Jwks {
+    Jwks {
         keys: vec![Jwk {
             kty: "RSA".to_string(),
             r#use: "sig".to_string(),
@@ -47,6 +47,5 @@ fn generate_jwks_json(public_key: &RsaPublicKey, kid: &str) -> String {
             n,
             e,
         }],
-    };
-    serde_json::to_string(&jwks).unwrap()
+    }
 }
