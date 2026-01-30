@@ -1,15 +1,30 @@
 use axum::{
-    extract::{Query, State},
-    http::StatusCode,
-    response::{IntoResponse, Json},
+    extract::State,
+    response::Json,
     routing::{get, post},
     Router,
 };
+use moka::future::Cache;
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::time::Duration;
 
+mod authorize;
 mod config;
+
+pub struct AppState {
+    settings: config::Settings,
+    auth_code_cache: Cache<String, UserIdentity>,
+    jwks_cache: Cache<String, Jwks>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct UserIdentity {
+    pub sub: String,
+    pub email: String,
+    pub groups: Vec<String>,
+}
 
 #[tokio::main]
 async fn main() {
@@ -17,7 +32,18 @@ async fn main() {
     tracing_subscriber::fmt::init();
 
     let settings = config::load_config();
-    let shared_state = Arc::new(settings);
+    let auth_code_cache = Cache::builder()
+        .time_to_live(Duration::from_secs(30))
+        .build();
+    let jwks_cache = Cache::builder()
+        .time_to_live(Duration::from_secs(3600))
+        .build();
+
+    let shared_state = Arc::new(AppState {
+        settings,
+        auth_code_cache,
+        jwks_cache,
+    });
 
     // build our application with a route
     let app = Router::new()
@@ -27,13 +53,13 @@ async fn main() {
             "/.well-known/openid-configuration",
             get(openid_configuration),
         )
-        .route("/authorize", get(authorize))
+        .route("/authorize", get(authorize::authorize))
         .route("/token", post(token))
         .route("/jwks", get(jwks))
         .with_state(shared_state.clone());
 
     // run our app with hyper
-    let addr = SocketAddr::from(([127, 0, 0, 1], shared_state.port));
+    let addr = SocketAddr::from(([127, 0, 0, 1], shared_state.settings.port));
     tracing::debug!("listening on {}", addr);
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
@@ -56,47 +82,23 @@ struct OIDCConfig {
     grant_types_supported: Vec<String>,
 }
 
-async fn openid_configuration(
-    State(settings): State<Arc<config::Settings>>,
-) -> Json<OIDCConfig> {
+async fn openid_configuration(State(state): State<Arc<AppState>>) -> Json<OIDCConfig> {
     let config = OIDCConfig {
-        issuer: settings.issuer.clone(),
-        authorization_endpoint: format!("{}/authorize", settings.issuer),
-        token_endpoint: format!("{}/token", settings.issuer),
-        jwks_uri: format!("{}/jwks", settings.issuer),
+        issuer: state.settings.issuer.clone(),
+        authorization_endpoint: format!("{}/authorize", state.settings.issuer),
+        token_endpoint: format!("{}/token", state.settings.issuer),
+        jwks_uri: format!("{}/jwks", state.settings.issuer),
         response_types_supported: vec!["code".to_string()],
         subject_types_supported: vec!["public".to_string()],
         id_token_signing_alg_values_supported: vec!["RS256".to_string()],
-        grant_types_supported: settings.grant_types_supported.clone(),
+        grant_types_supported: state.settings.grant_types_supported.clone(),
     };
     Json(config)
 }
 
-#[derive(Deserialize)]
-struct AuthorizeRequest {
-    client_id: String,
-    redirect_uri: String,
-    response_type: String,
-    code_challenge: String,
-    // we can ignore state and other params for now
-}
-
-async fn authorize(Query(params): Query<AuthorizeRequest>) -> impl IntoResponse {
-    // TODO: Implement the authorize flow
-    // 1. Check for Authorization header
-    // 2. Decode upstream token
-    // 3. Generate code and store in moka cache
-    // 4. Redirect to redirect_uri
-    (
-        StatusCode::FOUND,
-        [(
-            "Location",
-            format!("{}?code=some_code", params.redirect_uri),
-        )],
-    )
-}
 
 #[derive(Deserialize)]
+#[allow(dead_code)]
 struct TokenRequest {
     grant_type: String,
     code: Option<String>,
@@ -112,7 +114,7 @@ struct TokenResponse {
     expires_in: u64,
 }
 
-async fn token(Json(_payload): Json<TokenRequest>) -> Json<TokenResponse> {
+async fn token(State(_state): State<Arc<AppState>>, Json(_payload): Json<TokenRequest>) -> Json<TokenResponse> {
     // TODO: Implement the token exchange flow
     // 1. Handle grant_type=authorization_code
     //    a. Retrieve code from moka cache
@@ -132,22 +134,22 @@ async fn token(Json(_payload): Json<TokenRequest>) -> Json<TokenResponse> {
     Json(token)
 }
 
-#[derive(Serialize)]
-struct Jwks {
-    keys: Vec<Jwk>,
+#[derive(Clone, Serialize, Deserialize)]
+pub struct Jwks {
+    pub keys: Vec<Jwk>,
 }
 
-#[derive(Serialize)]
-struct Jwk {
-    kty: String,
-    kid: String,
-    n: String,
-    e: String,
-    alg: String,
-    r#use: String,
+#[derive(Clone, Serialize, Deserialize)]
+pub struct Jwk {
+    pub kty: String,
+    pub kid: String,
+    pub n: String,
+    pub e: String,
+    pub alg: String,
+    pub r#use: String,
 }
 
-async fn jwks() -> Json<Jwks> {
+async fn jwks(State(_state): State<Arc<AppState>>) -> Json<Jwks> {
     // TODO: Return the JWKS JSON
     // This will expose the public key for verifying the tokens signed by this service
     let jwks = Jwks { keys: vec![] };

@@ -5,6 +5,9 @@ pub struct Settings {
     pub issuer: String,
     pub grant_types_supported: Vec<String>,
     pub port: u16,
+    pub upstream_oidc_url: String,
+    pub upstream_jwks_url: String,
+    pub validate_upstream_token: bool,
 }
 
 pub fn load_config() -> Settings {

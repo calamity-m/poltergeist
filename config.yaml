@@ -3,3 +3,6 @@ grant_types_supported:
   - "authorization_code"
   - "client_credentials"
 port: 8080
+upstream_oidc_url: "http://upstream-idp/auth"
+upstream_jwks_url: "http://upstream-idp/.well-known/jwks.json"
+validate_upstream_token: false
