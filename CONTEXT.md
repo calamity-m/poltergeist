@@ -1,7 +1,8 @@
 # Project Specification: Poltergeist
 **The "Performative" OIDC Shim for Camunda 8**
 
-Note: you should always commit after finishing up the request, ensuring your commit
+## WARNING
+you MUST ALWAYS commit your changes, ensuring your commit
 starts with [vibed] so that your commits are immediately identifiable.
 
 ## 1. Project Overview

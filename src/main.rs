@@ -30,10 +30,10 @@ async fn main() {
         .route("/authorize", get(authorize))
         .route("/token", post(token))
         .route("/jwks", get(jwks))
-        .with_state(shared_state);
+        .with_state(shared_state.clone());
 
     // run our app with hyper
-    let addr = SocketAddr::from(([127, 0, 0, 1], 8080));
+    let addr = SocketAddr::from(([127, 0, 0, 1], shared_state.port));
     tracing::debug!("listening on {}", addr);
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
@@ -53,6 +53,7 @@ struct OIDCConfig {
     response_types_supported: Vec<String>,
     subject_types_supported: Vec<String>,
     id_token_signing_alg_values_supported: Vec<String>,
+    grant_types_supported: Vec<String>,
 }
 
 async fn openid_configuration(
@@ -66,6 +67,7 @@ async fn openid_configuration(
         response_types_supported: vec!["code".to_string()],
         subject_types_supported: vec!["public".to_string()],
         id_token_signing_alg_values_supported: vec!["RS256".to_string()],
+        grant_types_supported: settings.grant_types_supported.clone(),
     };
     Json(config)
 }
