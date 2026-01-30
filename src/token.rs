@@ -98,17 +98,22 @@ async fn handle_authorization_code(
             identity
         }
         None => {
+            let cid = payload
+                .client_id
+                .clone()
+                .unwrap_or_else(|| "unknown-client".to_string());
             tracing::warn!(
                 audit = true,
-                "Authorization code not found in cache (performative flow): {}",
-                code
+                "Authorization code not found in cache (performative flow): {}. Using client_id '{}' as fallback identity.",
+                code,
+                cid
             );
-            // Return a dummy identity to allow the flow to continue
+            // Return a dummy identity based on client_id to allow the flow to continue
             crate::UserIdentity {
-                sub: "unknown".to_string(),
-                email: "unknown@example.com".to_string(),
+                sub: format!("performative-{}", cid),
+                email: format!("{}@poltergeist.local", cid),
                 groups: vec![],
-                client_id: payload.client_id.unwrap_or_else(|| "unknown".to_string()),
+                client_id: cid,
             }
         }
     };
@@ -470,8 +475,8 @@ mod tests {
         
         let token_data = jsonwebtoken::dangerous::insecure_decode::<Claims>(&response.access_token).unwrap();
         
-        // Should have "unknown" identity but still issue a token
-        assert_eq!(token_data.claims.sub, "unknown");
+        // Should have a derived "performative" identity based on client_id
+        assert_eq!(token_data.claims.sub, "performative-test-client");
         assert_eq!(token_data.claims.aud, "test-client");
     }
 
