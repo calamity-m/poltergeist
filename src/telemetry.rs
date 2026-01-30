@@ -14,10 +14,10 @@ pub struct OtelGuard {
 
 impl Drop for OtelGuard {
     fn drop(&mut self) {
-        if let Some(provider) = self.tracer_provider.as_mut() {
-            if let Err(err) = provider.shutdown() {
-                eprintln!("{err:?}");
-            }
+        if let Some(provider) = self.tracer_provider.as_mut()
+            && let Err(err) = provider.shutdown()
+        {
+            eprintln!("{err:?}");
         }
     }
 }
@@ -63,10 +63,9 @@ fn init_tracer_provider(name: String) -> opentelemetry_sdk::trace::SdkTracerProv
 pub fn init(config: &TelemetryConfig) -> OtelGuard {
     let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
         EnvFilter::new(format!(
-            "{},axum={},sqlx={}",
+            "{},axum={}",
             tracing::Level::from(config.level),
             tracing::Level::from(config.axum_level),
-            tracing::Level::from(config.sqlx_level)
         ))
     });
 
@@ -90,9 +89,7 @@ pub fn init(config: &TelemetryConfig) -> OtelGuard {
             .boxed(),
     };
 
-    let registry = tracing_subscriber::registry()
-        .with(filter)
-        .with(fmt_layer);
+    let registry = tracing_subscriber::registry().with(filter).with(fmt_layer);
 
     if config.otlp_enabled {
         opentelemetry::global::set_text_map_propagator(

@@ -108,9 +108,6 @@ pub struct TelemetryConfig {
     /// Log level for Axum web framework
     pub axum_level: LogLevel,
 
-    /// Log level for SQLx database operations
-    pub sqlx_level: LogLevel,
-
     /// Service name to append to logs
     pub service_name: String,
 
@@ -125,7 +122,6 @@ impl Default for TelemetryConfig {
             format: Default::default(),
             level: LogLevel::Info,
             axum_level: LogLevel::Info,
-            sqlx_level: LogLevel::Info,
             service_name: "poltergeist".to_string(),
             otlp_enabled: false,
         }
