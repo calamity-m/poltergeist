@@ -8,8 +8,34 @@ use opentelemetry::propagation::Extractor;
 use tower::{Layer, Service};
 use tracing::{Instrument, info, span, warn};
 use tracing_opentelemetry::OpenTelemetrySpanExt;
+use std::future::Future;
 
 pub const REQUEST_ID_HEADER: &str = "x-request-id";
+
+tokio::task_local! {
+    pub static REQUEST_CONTEXT: RequestContext;
+}
+
+#[derive(Debug, Clone)]
+pub struct RequestContext {
+    pub endpoint: String,
+    pub host: String,
+    pub method: String,
+}
+
+pub fn with_request_info<F, R>(f: F) -> R
+where
+    F: Fn(&RequestContext) -> R,
+{
+    REQUEST_CONTEXT.try_with(|r| f(r)).unwrap_or_else(|_| {
+        static DEFAULT_CTX: RequestContext = RequestContext {
+            endpoint: String::new(),
+            host: String::new(),
+            method: String::new(),
+        };
+        f(&DEFAULT_CTX)
+    })
+}
 
 #[derive(Debug, Clone)]
 pub struct TraceParentService<S> {
@@ -95,7 +121,18 @@ where
             )
         }
 
-        Box::pin(self.inner.call(req).instrument(app_root))
+        let ctx = RequestContext {
+            endpoint,
+            host,
+            method: http_method,
+        };
+
+        let fut = self.inner.call(req);
+        Box::pin(async move {
+            REQUEST_CONTEXT.scope(ctx, async move {
+                fut.instrument(app_root).await
+            }).await
+        })
     }
 }
 

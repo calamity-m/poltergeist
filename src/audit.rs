@@ -11,10 +11,15 @@
 #[macro_export]
 macro_rules! audit {
     ($($arg:tt)+) => {
-        tracing::info!(
-            audit = true,
-            auditType = "authentication",
-            $($arg)+
-        )
+        $crate::middleware::with_request_info(|ctx| {
+            tracing::info!(
+                audit = true,
+                auditType = "authentication",
+                endpoint = %ctx.endpoint,
+                host = %ctx.host,
+                httpMethod = %ctx.method,
+                $($arg)+
+            )
+        })
     };
 }
