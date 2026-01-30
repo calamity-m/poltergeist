@@ -32,6 +32,8 @@ pub struct AppState {
     settings: config::Settings,
     /// Cache for upstream JWKS to avoid frequent network requests during token validation.
     jwks_cache: Cache<String, jwks::Jwks>,
+    /// Cache for authorization codes to support confidential clients.
+    auth_code_cache: Cache<String, upstream::UpstreamClaims>,
     /// State managing the application's signing keys and pre-computed JWKS.
     key_state: key::KeyState,
 }
@@ -51,6 +53,10 @@ async fn main() {
         .time_to_live(Duration::from_secs(3600))
         .build();
 
+    let auth_code_cache = Cache::builder()
+        .time_to_live(Duration::from_secs(60))
+        .build();
+
     let private_key_pem =
         std::fs::read_to_string(&settings.private_key_path).expect("Failed to read private key");
     let key_state = key::KeyState::new(&private_key_pem);
@@ -59,6 +65,7 @@ async fn main() {
     let shared_state = Arc::new(AppState {
         settings,
         jwks_cache,
+        auth_code_cache,
         key_state,
     });
 

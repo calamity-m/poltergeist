@@ -61,15 +61,20 @@ pub async fn authorize(
     }
 
     // Ensure the header is present and valid
-    if let Err((_, _)) = upstream::get_upstream_identity(&state, &headers).await {
-        tracing::info!(
-            audit = true,
-            "No valid Authorization header found, redirecting to upstream IDP"
-        );
-        return Redirect::to(&state.settings.upstream_oidc_url).into_response();
-    }
+    let identity = match upstream::get_upstream_identity(&state, &headers).await {
+        Ok(id) => id,
+        Err((_, _)) => {
+            tracing::info!(
+                audit = true,
+                "No valid Authorization header found, redirecting to upstream IDP"
+            );
+            return Redirect::to(&state.settings.upstream_oidc_url).into_response();
+        }
+    };
 
     let auth_code = generate_random_code();
+    state.auth_code_cache.insert(auth_code.clone(), identity).await;
+
     tracing::info!(
         audit = true,
         "Issued dummy authorization code for client: {}",
@@ -163,6 +168,7 @@ mod tests {
         let state = Arc::new(AppState {
             settings,
             jwks_cache: moka::future::Cache::builder().build(),
+            auth_code_cache: moka::future::Cache::builder().build(),
             key_state: key::KeyState::new(&app_private_key_pem),
         });
 
@@ -238,6 +244,7 @@ mod tests {
         let state = Arc::new(AppState {
             settings,
             jwks_cache: moka::future::Cache::builder().build(),
+            auth_code_cache: moka::future::Cache::builder().build(),
             key_state: key::KeyState::new(&app_private_key_pem),
         });
 

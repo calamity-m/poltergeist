@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 /// Claims from the upstream IDP
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct UpstreamClaims {
     pub sub: String,
     pub email: String,

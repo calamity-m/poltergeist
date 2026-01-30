@@ -65,33 +65,70 @@ pub async fn token(
     }
 }
 
-#[tracing::instrument(skip(state, headers))]
 async fn handle_authorization_code(
     state: Arc<AppState>,
     headers: HeaderMap,
     payload: TokenRequest,
 ) -> Result<Json<TokenResponse>, (StatusCode, String)> {
     // First ensure we're using a valid client
-
     let client_id = payload
         .client_id
         .ok_or_else(|| (StatusCode::BAD_REQUEST, "no client_id provided".to_string()))?;
 
-    let client = state
+    // Try to find as public client first
+    let public_client = state
         .settings
         .public_clients
         .iter()
-        .find(|c| c.client_id == client_id)
-        .ok_or_else(|| {
+        .find(|c| c.client_id == client_id);
+
+    let aud = if let Some(c) = public_client {
+        c.audience.clone()
+    } else {
+        // Try private clients
+        let private_client = state
+            .settings
+            .private_clients
+            .iter()
+            .find(|c| c.client_id == client_id)
+            .ok_or_else(|| {
+                (
+                    StatusCode::BAD_REQUEST,
+                    format!("{} is not a valid client_id", client_id),
+                )
+            })?;
+
+        // For private clients, we MUST have a secret and it MUST match
+        let secret = payload.client_secret.as_deref().ok_or_else(|| {
             (
-                StatusCode::BAD_REQUEST,
-                format!("{} is not a valid client_id", client_id),
+                StatusCode::UNAUTHORIZED,
+                "client_secret required for confidential client".to_string(),
             )
         })?;
 
-    // We ignore the code parameter because this is a "performative" shim.
-    // The actual identity comes from the Authorization header injected by the gateway.
-    let upstream_claims = upstream::get_upstream_identity(&state, &headers).await?;
+        if private_client.client_secret != secret {
+            return Err((StatusCode::UNAUTHORIZED, "invalid client secret".to_string()));
+        }
+
+        private_client.audience.clone()
+    };
+
+    // Try to get identity from cache via code, or fallback to header
+    let upstream_claims = if let Some(code) = payload.code {
+        if let Some(claims) = state.auth_code_cache.get(&code).await {
+            // Success! remove it from cache (single use)
+            state.auth_code_cache.invalidate(&code).await;
+            claims
+        } else {
+            // If code provided but not in cache, and we have a header, maybe we can fallback?
+            // Actually, if a code is provided and it's invalid, that's usually an error.
+            // But let's try the header if it exists for backward compatibility.
+            upstream::get_upstream_identity(&state, &headers).await?
+        }
+    } else {
+        // No code provided, MUST have a header
+        upstream::get_upstream_identity(&state, &headers).await?
+    };
 
     tracing::info!(
         audit = true,
@@ -100,10 +137,15 @@ async fn handle_authorization_code(
         upstream_claims.sub
     );
 
-    tracing::debug!("Issuing tokens with audience: {}", client.audience);
+    tracing::debug!("Issuing tokens with audience: {}", aud);
 
-    let claims =
-        downstream::create_downstream_claims_for_public(&state, client, upstream_claims).await;
+    let claims = downstream::create_downstream_claims(
+        state.settings.issuer.clone(),
+        state.settings.token_expires_in,
+        client_id.clone(),
+        aud,
+        upstream_claims.sub,
+    );
 
     let mut header = Header::new(jsonwebtoken::Algorithm::RS256);
     header.kid = Some("poltergeist".to_string());
@@ -112,6 +154,8 @@ async fn handle_authorization_code(
         tracing::error!("Failed to encode JWT: {}", e);
         (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
     })?;
+
+    let expires_in = state.settings.token_expires_in;
 
     tracing::info!(
         audit = true,
@@ -122,7 +166,7 @@ async fn handle_authorization_code(
     Ok(Json(TokenResponse {
         access_token: token_string.clone(),
         id_token: token_string,
-        expires_in: state.settings.token_expires_in,
+        expires_in,
     }))
 }
 
@@ -221,6 +265,7 @@ mod tests {
         let state = Arc::new(AppState {
             settings,
             jwks_cache: Cache::builder().build(),
+            auth_code_cache: Cache::builder().build(),
             key_state,
         });
 
@@ -262,6 +307,7 @@ mod tests {
         let state = Arc::new(AppState {
             settings,
             jwks_cache: Cache::builder().build(),
+            auth_code_cache: Cache::builder().build(),
             key_state,
         });
 
@@ -305,6 +351,7 @@ mod tests {
         let state = Arc::new(AppState {
             settings,
             jwks_cache: Cache::builder().build(),
+            auth_code_cache: Cache::builder().build(),
             key_state,
         });
 
@@ -349,6 +396,7 @@ mod tests {
         let state = Arc::new(AppState {
             settings,
             jwks_cache: Cache::builder().build(),
+            auth_code_cache: Cache::builder().build(),
             key_state,
         });
 
@@ -389,5 +437,69 @@ mod tests {
 
         assert_eq!(token_data.claims.aud, "custom-app-aud");
         assert_eq!(token_data.claims.sub, "test-user");
+    }
+
+    #[tokio::test]
+    async fn test_handle_authorization_code_confidential_client_success() {
+        let private_key_pem = std::fs::read_to_string("test/private_key.pem").unwrap();
+        let key_state = KeyState::new(&private_key_pem);
+
+        let settings = Settings {
+            issuer: "http://localhost:8080".to_string(),
+            grant_types_supported: vec!["authorization_code".to_string()],
+            port: 8080,
+            upstream_oidc_url: "http://upstream".to_string(),
+            upstream_jwks_url: "http://upstream/jwks".to_string(),
+            validate_upstream_token: false,
+            private_key_path: "test/private_key.pem".to_string(),
+            token_expires_in: 3600,
+            private_clients: vec![PrivateClient {
+                client_id: "confidential-client".to_string(),
+                client_secret: "top-secret".to_string(),
+                audience: "confidential-aud".to_string(),
+            }],
+            public_clients: vec![],
+        };
+
+        let state = Arc::new(AppState {
+            settings,
+            jwks_cache: Cache::builder().build(),
+            auth_code_cache: Cache::builder().build(),
+            key_state,
+        });
+
+        // 1. Put identity in cache
+        let upstream_claims = crate::upstream::UpstreamClaims {
+            sub: "confidential-user".to_string(),
+            email: "confid@example.com".to_string(),
+            exp: 10000000000,
+        };
+        let code = "confidential-code".to_string();
+        state
+            .auth_code_cache
+            .insert(code.clone(), upstream_claims)
+            .await;
+
+        // 2. Call handler with code and secret
+        let payload = TokenRequest {
+            grant_type: "authorization_code".to_string(),
+            code: Some(code),
+            code_verifier: None,
+            client_id: Some("confidential-client".to_string()),
+            client_secret: Some("top-secret".to_string()),
+        };
+
+        let headers = HeaderMap::new(); // No Authorization header needed!
+
+        let Json(response) = handle_authorization_code(state, headers, payload)
+            .await
+            .unwrap();
+
+        let token_data =
+            jsonwebtoken::dangerous::insecure_decode::<DownstreamClaims>(&response.access_token)
+                .unwrap();
+
+        assert_eq!(token_data.claims.aud, "confidential-aud");
+        assert_eq!(token_data.claims.sub, "confidential-user");
     }
 }

@@ -8,8 +8,7 @@ use tracing::debug;
 
 use crate::{
     AppState,
-    config::{PrivateClient, PublicClient},
-    upstream::UpstreamClaims,
+    config::PrivateClient,
 };
 
 /// JWT claims for the tokens issued by Poltergeist,
@@ -31,28 +30,25 @@ pub struct DownstreamClaims {
     pub iat: u64,
 }
 
-pub async fn create_downstream_claims_for_public(
-    state: &Arc<AppState>,
-    client: &PublicClient,
-    identity: UpstreamClaims,
+pub fn create_downstream_claims(
+    issuer: String,
+    token_expires_in: u64,
+    client_id: String,
+    audience: String,
+    subject: String,
 ) -> DownstreamClaims {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_secs();
-    let expires_in = state.settings.token_expires_in;
-
-    let aud = client.audience.clone();
-
-    tracing::debug!("Issuing tokens with audience: {}", aud);
 
     let claims = DownstreamClaims {
-        sub: identity.sub.clone(),
-        aud: aud.to_string(),
-        client_id: client.client_id.clone(),
-        iss: state.settings.issuer.clone(),
+        sub: subject,
+        aud: audience,
+        client_id,
+        iss: issuer,
         iat: now,
-        exp: now + expires_in,
+        exp: now + token_expires_in,
     };
 
     debug!("created claims - {:?}", claims);
@@ -63,25 +59,11 @@ pub async fn create_downstream_claims_for_private(
     state: &Arc<AppState>,
     client: &PrivateClient,
 ) -> DownstreamClaims {
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
-    let expires_in = state.settings.token_expires_in;
-
-    let aud = client.audience.clone();
-
-    tracing::debug!("Issuing M2M tokens with audience: {}", aud);
-
-    let claims = DownstreamClaims {
-        sub: client.client_id.clone(),
-        aud,
-        client_id: client.client_id.clone(),
-        iss: state.settings.issuer.clone(),
-        iat: now,
-        exp: now + expires_in,
-    };
-
-    debug!("created claims - {:?}", claims);
-    claims
+    create_downstream_claims(
+        state.settings.issuer.clone(),
+        state.settings.token_expires_in,
+        client.client_id.clone(),
+        client.audience.clone(),
+        client.client_id.clone(),
+    )
 }
