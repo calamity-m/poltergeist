@@ -16,7 +16,7 @@ RUN cargo build --release
 FROM debian:bookworm-slim
 
 # Install runtime dependencies (like CA certificates for upstream HTTPS)
-RUN apt-get update && apt-get install -y ca-certificates libssl3 && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y ca-certificates libssl3 curl && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
