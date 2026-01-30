@@ -102,7 +102,8 @@ async fn handle_authorization_code(
 
     tracing::debug!("Issuing tokens with audience: {}", client.audience);
 
-    let claims = downstream::create_downstream_claims_for_public(&state, client, upstream_claims).await;
+    let claims =
+        downstream::create_downstream_claims_for_public(&state, client, upstream_claims).await;
 
     let mut header = Header::new(jsonwebtoken::Algorithm::RS256);
     header.kid = Some("poltergeist".to_string());
