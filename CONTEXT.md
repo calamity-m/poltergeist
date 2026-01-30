@@ -1,212 +1,88 @@
-# Project Specification: OIDC "Ghost" Shim - Poltergeist
-
-## NOTE:
-
-Whenever changes are performed, you must commit your changed, ensuring your message
-starts with [vibed] to denote commits you have created.
+# Project Specification: Poltergeist
+**The "Performative" OIDC Shim for Camunda 8**
 
 ## 1. Project Overview
+**Ghosted** is a lightweight, stateless OIDC stub written in Rust. It exists solely to satisfy Camunda 8's strict OIDC requirements by bridging an existing Ingress authentication context.
 
-A lightweight, stateless OIDC Identity Provider written in Rust. Its primary purpose is to bridge an existing Upstream Identity Provider (acting via Ingress headers) to downstream applications (Camunda) that require strict OIDC compliance.
+* **The Problem:** Camunda requires an OIDC Provider (Issuer, Token, JWKS). The corporate Identity Provider refuses to support public clients or the specific claims Camunda needs.
+* **The Reality:** All traffic arrives via an Ingress Gateway. Requests are *already* authenticated. The Ingress injects the upstream JWT into the `Authorization` header.
+* **The Solution:** Ghosted acts as a "Yes Man." It accepts the upstream header, pretends to perform an OIDC login flow (to satisfy the Camunda SPA), and re-signs the upstream identity into a format Camunda accepts.
 
-It does not manage users. It creates "Ghost" sessions based on trusted headers or upstream tokens, re-signing them into a format the downstream application expects.
+---
 
 ## 2. Technology Stack
 
-### Core Runtime
-
-tokio: The async runtime (required).
-
-axum: The web framework for high-performance, ergonomic routing (required).
-
-### Identity & Crypto
-
-jsonwebtoken: For decoding upstream JWTs (validation) and encoding downstream JWTs (signing). Essential for handling the header payload manipulation.
-
-rsa: To handle loading the PKCS#8 / PEM private keys from the Kubernetes secret for signing tokens.
-
-sha2 / base64: For calculating PKCE challenges (S256) and thumbprints.
-
-### Utilities
-
-reqwest: (Optional) If you need to fetch the upstream IdP's JWKS to validate the incoming header token strictly.
-
-dashmap or moka: For thread-safe, high-performance in-memory storage of authorization codes (short-lived state). moka provides automatic TTL (time-to-live) eviction, which is perfect for auth codes.
-
-serde / serde_json: For robust JSON handling of OIDC payloads.
-
-config: To handle the runtime configuration (upstream issuers, allowed clients) via layered YAML/Environment variables.
-
-tracing / tracing-subscriber: For structured logging (essential for debugging auth flows).
-
-### 3. Architecture & Flows
-
-#### A. The Browser Flow (User Login)
-
-Goal: Authenticate a human user accessing Camunda Web UI.
-
-Incoming Request: User hits GET /authorize.
-
-Header Check: Middleware checks for Authorization: Bearer <Upstream_JWT>.
-
-Branch A (Authenticated):
-
-Validate: Verify <Upstream_JWT> against Upstream Issuer (signature + expiry).
-
-Extract: Pull user email/sub from the upstream token.
-
-Store Code: Generate a random auth_code. Store it in the Dashmap/Moka cache mapped to the user identity + original code_challenge (PKCE) + nonce.
-
-Redirect: Return 302 Found to redirect_uri?code=<auth_code>&state=<state>.
-
-Branch B (Unauthenticated):
-
-Redirect: Return 302 Found to the Upstream IdP's login page.
-
-Note: The Upstream IdP will authenticate the user and redirect them back to the original URL (your /authorize endpoint), this time with the headers injected by the Ingress.
-
-#### B. The Token Exchange (Browser / Public Client)
-
-Goal: Camunda frontend swaps the code for a token.
-
-Incoming Request: POST /token (grant_type=authorization_code).
-
-PKCE Validation: Verify the incoming code_verifier against the stored code_challenge (SHA256).
-
-Minting:
-
-Retrieve the user identity from the cache using the code.
-
-Create a ID Token and Access Token.
-
-Sign: Sign both using the Shim's Private Key (loaded from K8s).
-
-Response: Return standard OIDC JSON.
-
-#### C. The M2M Flow (Service Accounts)
-
-Goal: Backend services (Zeebe workers) authenticate.
-
-Incoming Request: POST /token (grant_type=client_credentials).
-
-Auth Check: Validate client_id and client_secret against the static configuration (loaded at startup).
-
-Minting:
-
-Create a token with sub: <client_id>.
-
-Inject configured scopes/groups for that client.
-
-Sign: Sign using the Shim's Private Key.
-
-Response: Return Access Token.
-
-### 4. Configuration Structure (config.yaml)
-
-The application should ingest a configuration that defines the "Ghost" clients and the upstream trust.
-
-```YAML
-server:
-  port: 8080
-  base_url: "https://auth.internal.corp" # Your Shim's URL
-
-upstream:
-  issuer: "https://accounts.google.com" # Or your corporate IdP
-  jwks_url: "https://www.googleapis.com/oauth2/v3/certs"
-
-#### Static keys loaded from K8s secrets (via Env vars usually, but mapped here)
-signing:
-  private_key_path: "/etc/secrets/key.pem"
-  kid: "shim-key-01"
-
-clients:
-  #### Browser Client (Camunda Web)
-  - client_id: "camunda-web"
-    type: "public"
-    redirect_uris:
-      - "https://camunda.internal.corp/identity/callback"
-    
-  #### M2M Client (Zeebe Worker)
-  - client_id: "zeebe-worker-01"
-    type: "private"
-    client_secret: "env(ZEEBE_CLIENT_SECRET)" # Load from Env
-    permissions: ["zeebe:read", "zeebe:write"]
-```
-
-## 5. API Endpoints Specification
-
-### 1. Discovery
-
-GET /.well-known/openid-configuration
-
-Returns static JSON pointing to your shim's endpoints (/authorize, /token, /jwks).
-
-### 2. JSON Web Key Set (JWKS)
-
-GET /jwks
-
-Returns the Public Key part of your RSA key pair. Camunda uses this to verify the tokens you issued.
-
-### 3. Authorization (Browser)
-
-GET /authorize
-
-Query Params: response_type, client_id, redirect_uri, scope, state, code_challenge, code_challenge_method.
-
-Logic: The "Air Traffic Controller". Checks headers vs Upstream, generates Code, redirects.
-
-### 4. Token Issuance
-
-POST /token
-
-Form Params: grant_type, code, redirect_uri, client_id, client_secret, code_verifier.
-
-Logic: Handles both authorization_code (PKCE verified) and client_credentials (Secret verified).
-
-### 6. Implementation Strategy
-
-#### Phase 1: The "Hollow" 
-
-Set up axum router.
-
-Implement /.well-known/openid-configuration to return hardcoded paths.
-
-Generate an RSA Keypair (openssl genrsa -out private.pem 2048).
-
-Implement /jwks to serve the public key derived from that PEM.
-
-Read yaml configuration.
-
-Utilise trace crate for logging.
-
-#### Phase 2: The M2M Flow (Easiest)
-
-Implement /token handler.
-
-Add logic for grant_type="client_credentials".
-
-Validate static secret.
-
-Mint and sign a JWT.
-
-Test: Use curl to get a token, then verify it against your /jwks using jwt.io or a verifier script.
-
-#### Phase 3: The Browser Flow
-
-Implement /authorize.
-
-Add logic to look for Authorization header.
-
-Add logic to redirect to Upstream IdP if header is missing.
-
-Implement the "Code Storage" (using moka or Dashmap).
-
-Update /token to handle grant_type="authorization_code" and verify PKCE.
-
-#### Phase 4: Productionize
-
-Load upstream JWKS (to actually validate the incoming header, not just trust it blindly).
-
-Dockerize (cargo build --release).
-
-Mount K8s secrets.
+* **Language:** Rust
+* **Web Framework:** `axum` (Ergonomic, fast, heavily used in Rust ecosystem)
+* **Runtime:** `tokio` (The standard async runtime)
+* **JWT Handling:** `jsonwebtoken` (For decoding upstream and signing downstream tokens)
+* **Key Handling:** `rsa` (To load the signing key)
+* **Serialization:** `serde` & `serde_json`
+* **State:** `moka` (High-performance caching with TTL for the auth codes)
+
+---
+
+## 3. The "Performative" Auth Flow (Browser)
+
+This flow is designed to unblock the SPA. It does not perform actual user authentication (the Ingress did that).
+
+### Step 1: The "Login" Request
+* **Endpoint:** `GET /authorize`
+* **Input:** `client_id`, `redirect_uri`, `response_type=code`, `code_challenge` (PKCE garbage).
+* **Logic:**
+    1.  **Check Header:** Look for `Authorization: Bearer <Upstream_Token>`.
+        * *If missing:* Redirect (`302`) to the Upstream IdP Login URL (Ingress handles the rest).
+    2.  **Extract Identity:** Decode the upstream token (ignoring signature if internal, or validating against JWKS if strict). Extract `sub` (username), `email`, and `groups`.
+    3.  **Generate Code:** Create a random alphanumeric string (`auth_code`).
+    4.  **Store State:** Save `auth_code` -> `User Identity Payload` in the `moka` cache (TTL: 30 seconds).
+        * *Simplification:* We **ignore** the `code_challenge`. We don't bother storing it.
+    5.  **Redirect:** Return `302 Found` to `<redirect_uri>?code=<auth_code>`.
+
+### Step 2: The Token Exchange
+* **Endpoint:** `POST /token`
+* **Input:** `grant_type=authorization_code`, `code`, `code_verifier` (PKCE garbage), `client_id`.
+* **Logic:**
+    1.  **Retrieve:** Lookup the `auth_code` in the `moka` cache.
+        * *If found:* We get the `User Identity Payload`.
+        * *If missing:* Return 400 Bad Request.
+    2.  **Ignore PKCE:** We accept the `code_verifier` parameter so the request doesn't fail parsing, but we **do nothing** with it. We trust the code because we just issued it based on a trusted header.
+    3.  **Mint Token:**
+        * Create a new **ID Token** & **Access Token**.
+        * **Issuer:** `http://ghosted-service`
+        * **Audience:** `camunda-web`
+        * **Claims:** Map the stored `User Identity` to the specific claims Camunda expects (e.g., `groups: ["camunda-admin"]`).
+    4.  **Sign:** Sign the tokens with the **Ghosted Private Key** (RSA256).
+    5.  **Respond:** Return standard JSON (`access_token`, `id_token`, `expires_in`).
+
+---
+
+## 4. The M2M Flow (Service Accounts)
+
+This handles Zeebe workers or backend scripts that don't have a user context.
+
+* **Endpoint:** `POST /token`
+* **Input:** `grant_type=client_credentials`, `client_id`, `client_secret`.
+* **Logic:**
+    1.  **Validate:** Check `client_id` and `client_secret` against the internal static config (e.g., loaded from `config.yaml` or Env Vars).
+    2.  **Mint Token:**
+        * Create a token for the machine user.
+        * **Subject:** `<client_id>`
+        * **Permissions:** Inject capabilities defined in config.
+    3.  **Sign & Respond.**
+
+---
+
+## 5. API Contract
+
+### `GET /.well-known/openid-configuration`
+Returns the static map so Camunda knows where to look.
+```json
+{
+  "issuer": "http://ghosted:8080",
+  "authorization_endpoint": "http://ghosted:8080/authorize",
+  "token_endpoint": "http://ghosted:8080/token",
+  "jwks_uri": "http://ghosted:8080/jwks",
+  "response_types_supported": ["code"],
+  "subject_types_supported": ["public"],
+  "id_token_signing_alg_values_supported": ["RS256"]
+}
