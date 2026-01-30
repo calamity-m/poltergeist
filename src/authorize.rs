@@ -7,7 +7,7 @@
 use crate::{AppState, upstream};
 use axum::{
     extract::{Query, State},
-    http::{HeaderMap, header, StatusCode},
+    http::{HeaderMap, StatusCode},
     response::{IntoResponse, Redirect},
 };
 use rand::distributions::Alphanumeric;
@@ -102,7 +102,7 @@ mod tests {
         key,
         upstream::UpstreamClaims,
     };
-    use axum::http::StatusCode;
+    use axum::http::{StatusCode, header};
     use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
     use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
     use rsa::pkcs1::EncodeRsaPrivateKey;
@@ -157,6 +157,7 @@ mod tests {
                 client_id: "client".to_string(),
                 audience: "aud".to_string(),
             }],
+            telemetry: Default::default(),
         };
 
         let app_private_key = RsaPrivateKey::new(&mut rng, 2048).unwrap();
@@ -239,6 +240,7 @@ mod tests {
                 client_id: "client".to_string(),
                 audience: "aud".to_string(),
             }],
+            telemetry: Default::default(),
         };
 
         let state = Arc::new(AppState {

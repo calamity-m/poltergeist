@@ -2,7 +2,8 @@
 //!
 //! Handles loading settings from `config.yaml`.
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 /// Application configuration settings.
 #[derive(Clone, Deserialize)]
@@ -30,6 +31,8 @@ pub struct Settings {
     pub private_clients: Vec<PrivateClient>,
     /// Static clients for Browser to service (authorization_code) flow.
     pub public_clients: Vec<PublicClient>,
+    #[serde(default)]
+    pub telemetry: TelemetryConfig,
 }
 
 /// Represents a static OAuth2 client for service-to-service communication.
@@ -52,6 +55,111 @@ pub struct PublicClient {
     /// The audience to be included in the tokens issued for this client.
     /// If not provided, a default might be used.
     pub audience: String,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum LoggingFormat {
+    /// JSON format - structured logging suitable for log aggregation systems
+    ///
+    /// Produces compact, machine-readable JSON output ideal for production
+    /// environments and log processing pipelines like ELK stack, Fluentd, etc.
+    ///
+    /// Default.
+    #[default]
+    Json,
+    /// Pretty format - human-readable output for development
+    ///
+    /// Produces colorized, indented output that's easier to read during
+    /// development and debugging. Not recommended for production use.
+    Pretty,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum LogLevel {
+    #[default]
+    Info,
+    Debug,
+    Trace,
+    Warn,
+    Error,
+}
+
+impl From<LogLevel> for tracing::Level {
+    fn from(level: LogLevel) -> Self {
+        match level {
+            LogLevel::Info => tracing::Level::INFO,
+            LogLevel::Debug => tracing::Level::DEBUG,
+            LogLevel::Trace => tracing::Level::TRACE,
+            LogLevel::Warn => tracing::Level::WARN,
+            LogLevel::Error => tracing::Level::ERROR,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct TelemetryConfig {
+    // Output format for log messages
+    pub format: LoggingFormat,
+
+    /// Global log level for the application
+    pub level: LogLevel,
+
+    /// Log level for Axum web framework
+    pub axum_level: LogLevel,
+
+    /// Log level for SQLx database operations
+    pub sqlx_level: LogLevel,
+
+    /// Service name to append to logs
+    pub service_name: String,
+}
+
+impl TelemetryConfig {
+    pub fn init_telemetry(&self) {
+        let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+            EnvFilter::new(format!(
+                "{},axum={},sqlx={}",
+                tracing::Level::from(self.level),
+                tracing::Level::from(self.axum_level),
+                tracing::Level::from(self.sqlx_level)
+            ))
+        });
+
+        let fmt_layer = fmt::layer()
+            .with_target(true)
+            .with_thread_ids(true)
+            .with_line_number(true)
+            .with_file(true);
+
+        match self.format {
+            LoggingFormat::Json => {
+                tracing_subscriber::registry()
+                    .with(filter)
+                    .with(fmt_layer.json())
+                    .init();
+            }
+            LoggingFormat::Pretty => {
+                tracing_subscriber::registry()
+                    .with(filter)
+                    .with(fmt_layer.pretty())
+                    .init();
+            }
+        }
+    }
+}
+
+impl Default for TelemetryConfig {
+    fn default() -> Self {
+        Self {
+            format: Default::default(),
+            level: LogLevel::Info,
+            axum_level: LogLevel::Info,
+            sqlx_level: LogLevel::Info,
+            service_name: "poltergeist".to_string(),
+        }
+    }
 }
 
 /// Loads configuration from the `config.yaml` file.

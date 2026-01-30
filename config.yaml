@@ -15,3 +15,10 @@ private_clients:
 public_clients:
   - client_id: "frontend-app"
     audience: "user-profile-api"
+
+telemetry:
+  format: "pretty"
+  level: "info"
+  axum_level: "info"
+  sqlx_level: "info"
+  service_name: "poltergeist"

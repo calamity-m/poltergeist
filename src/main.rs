@@ -40,12 +40,10 @@ pub struct AppState {
 
 #[tokio::main]
 async fn main() {
-    // initialize tracing
-    tracing_subscriber::fmt::init();
+    let settings = config::load_config();
+    settings.telemetry.init_telemetry();
 
     tracing::info!("Starting Poltergeist OIDC Shim...");
-
-    let settings = config::load_config();
     tracing::info!("Configuration loaded successfully. Port: {}", settings.port);
 
     // Initialize caches with appropriate TTLs
