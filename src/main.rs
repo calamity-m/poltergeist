@@ -23,6 +23,7 @@ mod config;
 mod downstream;
 mod jwks;
 mod key;
+mod telemetry;
 mod token;
 mod upstream;
 
@@ -41,7 +42,7 @@ pub struct AppState {
 #[tokio::main]
 async fn main() {
     let settings = config::load_config();
-    settings.telemetry.init_telemetry();
+    let _otel_guard = telemetry::init(&settings.telemetry);
 
     tracing::info!("Starting Poltergeist OIDC Shim...");
     tracing::info!("Configuration loaded successfully. Port: {}", settings.port);

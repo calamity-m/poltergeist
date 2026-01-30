@@ -3,7 +3,6 @@
 //! Handles loading settings from `config.yaml`.
 
 use serde::{Deserialize, Serialize};
-use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 /// Application configuration settings.
 #[derive(Clone, Deserialize)]
@@ -114,40 +113,10 @@ pub struct TelemetryConfig {
 
     /// Service name to append to logs
     pub service_name: String,
-}
 
-impl TelemetryConfig {
-    pub fn init_telemetry(&self) {
-        let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-            EnvFilter::new(format!(
-                "{},axum={},sqlx={}",
-                tracing::Level::from(self.level),
-                tracing::Level::from(self.axum_level),
-                tracing::Level::from(self.sqlx_level)
-            ))
-        });
-
-        let fmt_layer = fmt::layer()
-            .with_target(true)
-            .with_thread_ids(true)
-            .with_line_number(true)
-            .with_file(true);
-
-        match self.format {
-            LoggingFormat::Json => {
-                tracing_subscriber::registry()
-                    .with(filter)
-                    .with(fmt_layer.json())
-                    .init();
-            }
-            LoggingFormat::Pretty => {
-                tracing_subscriber::registry()
-                    .with(filter)
-                    .with(fmt_layer.pretty())
-                    .init();
-            }
-        }
-    }
+    /// Whether to enable OpenTelemetry (OTLP) exporting
+    #[serde(default)]
+    pub otlp_enabled: bool,
 }
 
 impl Default for TelemetryConfig {
@@ -158,6 +127,7 @@ impl Default for TelemetryConfig {
             axum_level: LogLevel::Info,
             sqlx_level: LogLevel::Info,
             service_name: "poltergeist".to_string(),
+            otlp_enabled: false,
         }
     }
 }

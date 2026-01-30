@@ -2,7 +2,7 @@
 //!
 //! Handles the exchange of authorization codes (or client credentials) for access and ID tokens.
 
-use crate::downstream::{self, DownstreamClaims};
+use crate::downstream;
 use crate::{AppState, upstream};
 use axum::Json;
 use axum::extract::State;
@@ -237,6 +237,7 @@ async fn handle_client_credentials(
 mod tests {
     use super::*;
     use crate::config::{PrivateClient, PublicClient, Settings};
+    use crate::downstream::DownstreamClaims;
     use crate::key::KeyState;
     use moka::future::Cache;
 
