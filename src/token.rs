@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 /// Parameters for the token exchange request.
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 #[allow(dead_code)]
 pub struct TokenRequest {
     /// The grant type (e.g., "authorization_code" or "client_credentials").
@@ -41,7 +41,14 @@ pub struct TokenResponse {
 /// Handler for the `/token` endpoint.
 ///
 /// Handles both `authorization_code` and `client_credentials` grant types.
-#[tracing::instrument(skip(state, headers))]
+#[tracing::instrument(
+    skip(state, headers, payload),
+    fields(
+        grant_type = payload.grant_type,
+        client_id = payload.client_id,
+        code = payload.code
+    )
+)]
 pub async fn token(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,

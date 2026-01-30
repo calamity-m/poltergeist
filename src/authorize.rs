@@ -12,11 +12,11 @@ use axum::{
 };
 use rand::distributions::Alphanumeric;
 use rand::{Rng, thread_rng};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 /// Parameters for the authorization request.
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 #[allow(dead_code)]
 pub struct AuthorizeRequest {
     client_id: String,
@@ -33,7 +33,14 @@ pub struct AuthorizeRequest {
 /// 3.  If present, decodes (and optionally validates) the token to extract user identity.
 /// 4.  Generates a random authorization code (dummy).
 /// 5.  Redirects back to the `redirect_uri` with the code.
-#[tracing::instrument(skip(state, headers))]
+#[tracing::instrument(
+    skip(state, headers, params),
+    fields(
+        client_id = params.client_id,
+        redirect_uri = params.redirect_uri,
+        response_type = params.response_type
+    )
+)]
 pub async fn authorize(
     State(state): State<Arc<AppState>>,
     Query(params): Query<AuthorizeRequest>,
