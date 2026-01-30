@@ -50,6 +50,11 @@ pub struct StaticClient {
 pub fn load_config() -> Settings {
     let cfg = config::Config::builder()
         .add_source(config::File::with_name("config"))
+        .add_source(
+            config::Environment::with_prefix("POLTERGEIST")
+                .prefix_separator("_")
+                .separator("__"),
+        )
         .build()
         .map_err(|e| {
             tracing::error!("Failed to build configuration: {}", e);
@@ -63,4 +68,30 @@ pub fn load_config() -> Settings {
             e
         })
         .unwrap()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::env;
+
+    #[test]
+    fn test_load_config_env_override() {
+        // Set an environment variable that should override the yaml config
+        unsafe {
+            env::set_var("POLTERGEIST_PORT", "9999");
+            env::set_var("POLTERGEIST_ISSUER", "http://env-issuer");
+        }
+
+        let settings = load_config();
+
+        assert_eq!(settings.port, 9999);
+        assert_eq!(settings.issuer, "http://env-issuer");
+
+        // Clean up
+        unsafe {
+            env::remove_var("POLTERGEIST_PORT");
+            env::remove_var("POLTERGEIST_ISSUER");
+        }
+    }
 }
