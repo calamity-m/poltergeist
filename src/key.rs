@@ -1,34 +1,9 @@
+use crate::jwks::{Jwk, Jwks};
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use jsonwebtoken::EncodingKey;
-use rsa::pkcs8::{DecodePrivateKey, EncodePrivateKey, EncodePublicKey};
+use rsa::pkcs8::DecodePrivateKey;
 use rsa::traits::PublicKeyParts;
 use rsa::{RsaPrivateKey, RsaPublicKey};
-use serde_json::json;
-
-use crate::AppState;
-use axum::Json;
-use axum::extract::State;
-use serde::{Deserialize, Serialize};
-use std::sync::Arc;
-
-#[derive(Clone, Serialize, Deserialize)]
-pub struct Jwks {
-    pub keys: Vec<Jwk>,
-}
-
-#[derive(Clone, Serialize, Deserialize)]
-pub struct Jwk {
-    pub kty: String,
-    pub kid: String,
-    pub n: String,
-    pub e: String,
-    pub alg: String,
-    pub r#use: String,
-}
-
-pub async fn jwks(State(state): State<Arc<AppState>>) -> Json<String> {
-    panic!("todo");
-}
 
 #[derive(Clone)]
 pub struct KeyState {
@@ -63,17 +38,15 @@ fn generate_jwks_json(public_key: &RsaPublicKey, kid: &str) -> String {
     let e = URL_SAFE_NO_PAD.encode(public_key.e().to_bytes_be());
 
     // 4. Construct the JSON Web Key Set
-    json!({
-        "keys": [
-            {
-                "kty": "RSA",
-                "use": "sig",
-                "kid": kid,
-                "alg": "RS256",
-                "n": n,
-                "e": e
-            }
-        ]
-    })
-    .to_string()
+    let jwks = Jwks {
+        keys: vec![Jwk {
+            kty: "RSA".to_string(),
+            r#use: "sig".to_string(),
+            kid: kid.to_string(),
+            alg: "RS256".to_string(),
+            n,
+            e,
+        }],
+    };
+    serde_json::to_string(&jwks).unwrap()
 }

@@ -1,4 +1,4 @@
-use crate::{AppState, Jwks, UserIdentity};
+use crate::{jwks::Jwks, AppState, UserIdentity};
 use axum::{
     extract::{Query, State},
     http::{header, HeaderMap, StatusCode},
@@ -93,14 +93,15 @@ async fn decode_token_with_validation(
     let header = decode_header(token)?;
     let kid = header.kid.ok_or_else(|| anyhow::anyhow!("Missing kid"))?;
 
-    let jwks = state
+    let jwks: Arc<Jwks> = state
         .jwks_cache
         .try_get_with(jwks_url.to_string(), async {
             let jwks: Jwks = reqwest::get(jwks_url).await?.json().await?;
             Ok::<_, anyhow::Error>(jwks)
         })
         .await
-        .map_err(|e| anyhow::anyhow!("Failed to fetch or cache JWKS: {}", e))?;
+        .map_err(|e| anyhow::anyhow!("Failed to fetch or cache JWKS: {}", e))?
+        .into();
 
     let jwk = jwks
         .keys
