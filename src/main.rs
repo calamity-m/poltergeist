@@ -23,14 +23,12 @@ mod config;
 mod jwks;
 mod key;
 mod token;
+mod upstream;
 
 /// Global application state shared across handlers.
 pub struct AppState {
     /// Application configuration loaded from `config.yaml`.
     settings: config::Settings,
-    /// Cache for storing authorization codes and associated user identities.
-    /// Used to validate the code during the token exchange.
-    auth_code_cache: Cache<String, UserIdentity>,
     /// Cache for upstream JWKS to avoid frequent network requests during token validation.
     jwks_cache: Cache<String, jwks::Jwks>,
     /// State managing the application's signing keys and pre-computed JWKS.
@@ -61,9 +59,6 @@ async fn main() {
     tracing::info!("Configuration loaded successfully. Port: {}", settings.port);
 
     // Initialize caches with appropriate TTLs
-    let auth_code_cache = Cache::builder()
-        .time_to_live(Duration::from_secs(30))
-        .build();
     let jwks_cache = Cache::builder()
         .time_to_live(Duration::from_secs(3600))
         .build();
@@ -75,7 +70,6 @@ async fn main() {
 
     let shared_state = Arc::new(AppState {
         settings,
-        auth_code_cache,
         jwks_cache,
         key_state,
     });

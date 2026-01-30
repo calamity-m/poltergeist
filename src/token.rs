@@ -2,9 +2,9 @@
 //!
 //! Handles the exchange of authorization codes (or client credentials) for access and ID tokens.
 
-use crate::AppState;
+use crate::{upstream, AppState};
 use axum::extract::State;
-use axum::http::StatusCode;
+use axum::http::{HeaderMap, StatusCode};
 use axum::Json;
 use jsonwebtoken::{encode, Header};
 use serde::{Deserialize, Serialize};
@@ -22,7 +22,7 @@ pub struct TokenRequest {
     /// PKCE code verifier (currently ignored but part of the spec).
     code_verifier: Option<String>,
     /// Client identifier.
-    client_id: Option<String>,
+    pub client_id: Option<String>,
     /// Client secret (for client_credentials flow).
     client_secret: Option<String>,
 }
@@ -58,15 +58,16 @@ pub struct Claims {
 /// Handler for the `/token` endpoint.
 ///
 /// Handles both `authorization_code` and `client_credentials` grant types.
-#[tracing::instrument(skip(state))]
+#[tracing::instrument(skip(state, headers))]
 pub async fn token(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Json(payload): Json<TokenRequest>,
 ) -> Result<Json<TokenResponse>, (StatusCode, String)> {
     tracing::info!(audit = true, "Received token request: grant_type={}", payload.grant_type);
     match payload.grant_type.as_str() {
         "client_credentials" => handle_client_credentials(state, payload).await,
-        "authorization_code" => handle_authorization_code(state, payload).await,
+        "authorization_code" => handle_authorization_code(state, headers, payload).await,
         _ => {
             tracing::warn!("Unsupported grant type: {}", payload.grant_type);
             Err((
@@ -77,50 +78,24 @@ pub async fn token(
     }
 }
 
-#[tracing::instrument(skip(state))]
+#[tracing::instrument(skip(state, headers))]
 async fn handle_authorization_code(
     state: Arc<AppState>,
+    headers: HeaderMap,
     payload: TokenRequest,
 ) -> Result<Json<TokenResponse>, (StatusCode, String)> {
-    let code = payload.code.ok_or_else(|| {
-        tracing::warn!("Missing code in authorization_code grant request");
-        (
-            StatusCode::BAD_REQUEST,
-            "missing code for authorization_code grant".to_string(),
-        )
-    })?;
-
-    // Retrieve user identity from cache
-    let user_identity = match state.auth_code_cache.get(&code).await {
-        Some(identity) => {
-            // Remove code from cache after use (one-time use)
-            state.auth_code_cache.invalidate(&code).await;
-            identity
-        }
-        None => {
-            let cid = payload
-                .client_id
-                .clone()
-                .unwrap_or_else(|| "unknown-client".to_string());
-            tracing::warn!(
-                audit = true,
-                "Authorization code not found in cache (performative flow): {}. Using client_id '{}' as fallback identity.",
-                code,
-                cid
-            );
-            // Return a dummy identity based on client_id to allow the flow to continue
-            crate::UserIdentity {
-                sub: format!("performative-{}", cid),
-                email: format!("{}@poltergeist.local", cid),
-                groups: vec![],
-                client_id: cid,
-            }
-        }
-    };
+    // We ignore the code parameter because this is a "performative" shim.
+    // The actual identity comes from the Authorization header injected by the gateway.
+    let mut user_identity = upstream::get_upstream_identity(&state, &headers).await?;
+    
+    // Use the client_id from the request if provided
+    if let Some(client_id) = &payload.client_id {
+        user_identity.client_id = client_id.clone();
+    }
 
     tracing::info!(
         audit = true,
-        "Exchanging code for client: {}, subject: {}",
+        "Exchanging code (performative) for client: {}, subject: {}",
         user_identity.client_id,
         user_identity.sub
     );
@@ -280,7 +255,6 @@ mod tests {
 
         let state = Arc::new(AppState {
             settings,
-            auth_code_cache: Cache::builder().build(),
             jwks_cache: Cache::builder().build(),
             key_state,
         });
@@ -322,7 +296,6 @@ mod tests {
 
         let state = Arc::new(AppState {
             settings,
-            auth_code_cache: Cache::builder().build(),
             jwks_cache: Cache::builder().build(),
             key_state,
         });
@@ -366,7 +339,6 @@ mod tests {
 
         let state = Arc::new(AppState {
             settings,
-            auth_code_cache: Cache::builder().build(),
             jwks_cache: Cache::builder().build(),
             key_state,
         });
@@ -387,7 +359,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_handle_authorization_code_custom_audience() {
+    async fn test_handle_authorization_code_success() {
         let private_key_pem = std::fs::read_to_string("test/private_key.pem").unwrap();
         let key_state = KeyState::new(&private_key_pem);
 
@@ -408,76 +380,42 @@ mod tests {
             }],
         };
 
-        let auth_code_cache = Cache::builder().build();
-        auth_code_cache.insert("test-code".to_string(), crate::UserIdentity {
-            sub: "test-user".to_string(),
-            email: "test@example.com".to_string(),
-            groups: vec!["admin".to_string()],
-            client_id: "web-app".to_string(),
-        }).await;
-
         let state = Arc::new(AppState {
             settings,
-            auth_code_cache,
             jwks_cache: Cache::builder().build(),
             key_state,
         });
 
+        // Mock upstream token
+        let upstream_claims = crate::upstream::UpstreamClaims {
+            sub: "test-user".to_string(),
+            email: "test@example.com".to_string(),
+            groups: vec!["admin".to_string()],
+            exp: 10000000000,
+        };
+        let upstream_token = jsonwebtoken::encode(
+            &Header::default(),
+            &upstream_claims,
+            &jsonwebtoken::EncodingKey::from_secret("secret".as_ref()),
+        ).unwrap();
+
+        let mut headers = HeaderMap::new();
+        headers.insert("Authorization", format!("Bearer {}", upstream_token).parse().unwrap());
+
         let payload = TokenRequest {
             grant_type: "authorization_code".to_string(),
-            code: Some("test-code".to_string()),
+            code: Some("any-code".to_string()),
             code_verifier: None,
             client_id: Some("web-app".to_string()),
             client_secret: None,
         };
 
-        let Json(response) = handle_authorization_code(state, payload).await.unwrap();
+        let Json(response) = handle_authorization_code(state, headers, payload).await.unwrap();
         
         let token_data = jsonwebtoken::dangerous::insecure_decode::<Claims>(&response.access_token).unwrap();
         
         assert_eq!(token_data.claims.aud, "custom-app-aud");
         assert_eq!(token_data.claims.sub, "test-user");
-    }
-
-    #[tokio::test]
-    async fn test_handle_authorization_code_missing_from_cache() {
-        let private_key_pem = std::fs::read_to_string("test/private_key.pem").unwrap();
-        let key_state = KeyState::new(&private_key_pem);
-
-        let settings = Settings {
-            issuer: "http://localhost:8080".to_string(),
-            grant_types_supported: vec!["authorization_code".to_string()],
-            port: 8080,
-            upstream_oidc_url: "http://upstream".to_string(),
-            upstream_jwks_url: "http://upstream/jwks".to_string(),
-            validate_upstream_token: false,
-            private_key_path: "test/private_key.pem".to_string(),
-            token_expires_in: 3600,
-            clients: vec![],
-        };
-
-        let state = Arc::new(AppState {
-            settings,
-            auth_code_cache: Cache::builder().build(), // Empty cache
-            jwks_cache: Cache::builder().build(),
-            key_state,
-        });
-
-        let payload = TokenRequest {
-            grant_type: "authorization_code".to_string(),
-            code: Some("non-existent-code".to_string()),
-            code_verifier: None,
-            client_id: Some("test-client".to_string()),
-            client_secret: None,
-        };
-
-        let Json(response) = handle_authorization_code(state, payload).await.unwrap();
-        
-        let token_data = jsonwebtoken::dangerous::insecure_decode::<Claims>(&response.access_token).unwrap();
-        
-        // Should have a derived "performative" identity based on client_id
-        assert_eq!(token_data.claims.sub, "performative-test-client");
-        assert_eq!(token_data.claims.aud, "test-client");
     }
 
     #[tokio::test]
@@ -504,7 +442,6 @@ mod tests {
 
         let state = Arc::new(AppState {
             settings,
-            auth_code_cache: Cache::builder().build(),
             jwks_cache: Cache::builder().build(),
             key_state,
         });
