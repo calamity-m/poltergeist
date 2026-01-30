@@ -8,6 +8,7 @@ pub struct Settings {
     pub upstream_oidc_url: String,
     pub upstream_jwks_url: String,
     pub validate_upstream_token: bool,
+    pub private_key_path: String,
 }
 
 pub fn load_config() -> Settings {

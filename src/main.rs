@@ -44,7 +44,7 @@ async fn main() {
         .build();
 
     let private_key_pem =
-        std::fs::read_to_string("test/private_key.pem").expect("Failed to read private key");
+        std::fs::read_to_string(&settings.private_key_path).expect("Failed to read private key");
     let key_state = key::KeyState::new(&private_key_pem);
 
     let shared_state = Arc::new(AppState {
