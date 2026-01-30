@@ -1,8 +1,8 @@
 use axum::{
+    Router,
     extract::State,
     response::Json,
     routing::{get, post},
-    Router,
 };
 use moka::future::Cache;
 use serde::{Deserialize, Serialize};
@@ -12,6 +12,7 @@ use std::time::Duration;
 
 mod authorize;
 mod config;
+mod token;
 
 pub struct AppState {
     settings: config::Settings,
@@ -96,7 +97,6 @@ async fn openid_configuration(State(state): State<Arc<AppState>>) -> Json<OIDCCo
     Json(config)
 }
 
-
 #[derive(Deserialize)]
 #[allow(dead_code)]
 struct TokenRequest {
@@ -114,7 +114,10 @@ struct TokenResponse {
     expires_in: u64,
 }
 
-async fn token(State(_state): State<Arc<AppState>>, Json(_payload): Json<TokenRequest>) -> Json<TokenResponse> {
+async fn token(
+    State(_state): State<Arc<AppState>>,
+    Json(_payload): Json<TokenRequest>,
+) -> Json<TokenResponse> {
     // TODO: Implement the token exchange flow
     // 1. Handle grant_type=authorization_code
     //    a. Retrieve code from moka cache
