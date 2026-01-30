@@ -28,6 +28,7 @@ impl KeyState {
     ///
     /// # Panics
     /// Panics if the key cannot be parsed.
+    #[tracing::instrument(skip(private_key_pem))]
     pub fn new(private_key_pem: &str) -> Self {
         // 1. Load Private Key for Signing (jsonwebtoken)
         let encoding_key = EncodingKey::from_rsa_pem(private_key_pem.as_bytes())
@@ -50,6 +51,7 @@ impl KeyState {
 }
 
 /// Generates the JWKS JSON string from an RSA public key.
+#[tracing::instrument(skip(public_key))]
 fn generate_jwks_json(public_key: &RsaPublicKey, kid: &str) -> String {
     // 3. Extract components for OIDC JWKS (Base64URL encoded)
     let n = URL_SAFE_NO_PAD.encode(public_key.n().to_bytes_be());

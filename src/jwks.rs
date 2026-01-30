@@ -39,6 +39,7 @@ pub struct Jwk {
 /// Handler for the `/jwks` endpoint.
 ///
 /// Returns the pre-computed JWKS JSON string.
+#[tracing::instrument(skip(state))]
 pub async fn jwks(State(state): State<Arc<AppState>>) -> impl IntoResponse {
     tracing::debug!("Serving JWKS public keys");
     // We already have the JSON string pre-computed, so we return it directly

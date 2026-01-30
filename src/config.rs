@@ -46,6 +46,7 @@ pub struct StaticClient {
 ///
 /// # Panics
 /// Panics if the configuration file cannot be found or if it doesn't match the `Settings` structure.
+#[tracing::instrument]
 pub fn load_config() -> Settings {
     let cfg = config::Config::builder()
         .add_source(config::File::with_name("config"))

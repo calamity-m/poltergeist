@@ -12,7 +12,7 @@ use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Parameters for the token exchange request.
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 #[allow(dead_code)]
 pub struct TokenRequest {
     /// The grant type (e.g., "authorization_code" or "client_credentials").
@@ -58,6 +58,7 @@ pub struct Claims {
 /// Handler for the `/token` endpoint.
 ///
 /// Handles both `authorization_code` and `client_credentials` grant types.
+#[tracing::instrument(skip(state))]
 pub async fn token(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<TokenRequest>,
@@ -76,6 +77,7 @@ pub async fn token(
     }
 }
 
+#[tracing::instrument(skip(state))]
 async fn handle_authorization_code(
     state: Arc<AppState>,
     payload: TokenRequest,
@@ -156,6 +158,7 @@ async fn handle_authorization_code(
     }))
 }
 
+#[tracing::instrument(skip(state))]
 async fn handle_client_credentials(
     state: Arc<AppState>,
     payload: TokenRequest,

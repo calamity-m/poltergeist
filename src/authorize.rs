@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 /// Parameters for the authorization request.
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 #[allow(dead_code)]
 pub struct AuthorizeRequest {
     client_id: String,
@@ -44,6 +44,7 @@ struct UpstreamClaims {
 /// 4.  Generates a random authorization code.
 /// 5.  Stores the code mapped to the user identity in the cache.
 /// 6.  Redirects back to the `redirect_uri` with the code.
+#[tracing::instrument(skip(state, headers))]
 pub async fn authorize(
     State(state): State<Arc<AppState>>,
     Query(params): Query<AuthorizeRequest>,

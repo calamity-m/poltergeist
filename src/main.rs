@@ -101,6 +101,7 @@ async fn main() {
 }
 
 /// Basic health check endpoint.
+#[tracing::instrument]
 async fn root() -> &'static str {
     "Hello, World!"
 }
@@ -120,6 +121,7 @@ struct OIDCConfig {
 
 /// Handler for the OIDC Discovery endpoint (`/.well-known/openid-configuration`).
 /// Returns the configuration metadata for this OIDC provider.
+#[tracing::instrument(skip(state))]
 async fn openid_configuration(State(state): State<Arc<AppState>>) -> Json<OIDCConfig> {
     tracing::debug!("Serving OIDC discovery configuration");
     let config = OIDCConfig {
