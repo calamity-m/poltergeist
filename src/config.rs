@@ -30,6 +30,13 @@ pub struct Settings {
     pub clients: Vec<StaticClient>,
 }
 
+#[derive(Clone, Deserialize, Debug, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum ClientType {
+    Public,
+    Private,
+}
+
 /// Represents a static OAuth2 client for service-to-service communication.
 #[derive(Clone, Deserialize)]
 pub struct StaticClient {
@@ -42,6 +49,8 @@ pub struct StaticClient {
     /// The audience to be included in the tokens issued for this client.
     /// If not provided, a default might be used.
     pub audience: Option<String>,
+    /// The type of client (public or private).
+    pub client_type: ClientType,
 }
 
 /// Loads configuration from the `config.yaml` file.

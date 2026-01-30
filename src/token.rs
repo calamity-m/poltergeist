@@ -227,7 +227,7 @@ async fn handle_client_credentials(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{Settings, StaticClient};
+    use crate::config::{Settings, StaticClient, ClientType};
     use crate::key::KeyState;
     use moka::future::Cache;
 
@@ -250,6 +250,7 @@ mod tests {
                 client_secret: "test-secret".to_string(),
                 groups: vec!["test-group".to_string()],
                 audience: None,
+                client_type: ClientType::Private,
             }],
         };
 
@@ -291,6 +292,7 @@ mod tests {
                 client_secret: "test-secret".to_string(),
                 groups: vec!["test-group".to_string()],
                 audience: None,
+                client_type: ClientType::Private,
             }],
         };
 
@@ -334,6 +336,7 @@ mod tests {
                 client_secret: "test-secret".to_string(),
                 groups: vec!["test-group".to_string()],
                 audience: Some("custom-audience".to_string()),
+                client_type: ClientType::Private,
             }],
         };
 
@@ -377,6 +380,7 @@ mod tests {
                 client_secret: "secret".to_string(),
                 groups: vec![],
                 audience: Some("custom-app-aud".to_string()),
+                client_type: ClientType::Public,
             }],
         };
 
@@ -437,6 +441,7 @@ mod tests {
                 client_secret: "secret".to_string(),
                 groups: vec![],
                 audience: None, // No audience set
+                client_type: ClientType::Private,
             }],
         };
 

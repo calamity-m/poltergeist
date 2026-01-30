@@ -14,7 +14,9 @@ clients:
     groups:
       - "admin"
     audience: "internal-api"
+    client_type: private
   - client_id: "frontend-app"
     client_secret: "public"
     groups: []
     audience: "user-profile-api"
+    client_type: public
