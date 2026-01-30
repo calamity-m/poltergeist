@@ -1,3 +1,11 @@
+//! Poltergeist: A "Performative" OIDC Shim for Camunda 8.
+//!
+//! This application serves as a lightweight OIDC provider that bridges authentication
+//! from an upstream source (e.g., an Ingress controller) to meet Camunda 8's requirements.
+//!
+//! It implements standard OIDC endpoints (`/authorize`, `/token`, `/jwks`, `/.well-known/openid-configuration`)
+//! and uses in-memory caching for state management.
+
 use axum::{
     extract::State,
     response::Json,
@@ -16,17 +24,27 @@ mod jwks;
 mod key;
 mod token;
 
+/// Global application state shared across handlers.
 pub struct AppState {
+    /// Application configuration loaded from `config.yaml`.
     settings: config::Settings,
+    /// Cache for storing authorization codes and associated user identities.
+    /// Used to validate the code during the token exchange.
     auth_code_cache: Cache<String, UserIdentity>,
+    /// Cache for upstream JWKS to avoid frequent network requests during token validation.
     jwks_cache: Cache<String, jwks::Jwks>,
+    /// State managing the application's signing keys and pre-computed JWKS.
     key_state: key::KeyState,
 }
 
+/// Represents the identity of an authenticated user.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct UserIdentity {
+    /// Subject identifier (e.g., username or user ID).
     pub sub: String,
+    /// User's email address.
     pub email: String,
+    /// List of groups the user belongs to.
     pub groups: Vec<String>,
 }
 
@@ -36,6 +54,7 @@ async fn main() {
     tracing_subscriber::fmt::init();
 
     let settings = config::load_config();
+    // Initialize caches with appropriate TTLs
     let auth_code_cache = Cache::builder()
         .time_to_live(Duration::from_secs(30))
         .build();
@@ -74,11 +93,12 @@ async fn main() {
     axum::serve(listener, app).await.unwrap();
 }
 
-// basic handler that responds with a static string
+/// Basic health check endpoint.
 async fn root() -> &'static str {
     "Hello, World!"
 }
 
+/// Structure representing the OIDC Discovery document.
 #[derive(Serialize)]
 struct OIDCConfig {
     issuer: String,
@@ -91,6 +111,8 @@ struct OIDCConfig {
     grant_types_supported: Vec<String>,
 }
 
+/// Handler for the OIDC Discovery endpoint (`/.well-known/openid-configuration`).
+/// Returns the configuration metadata for this OIDC provider.
 async fn openid_configuration(State(state): State<Arc<AppState>>) -> Json<OIDCConfig> {
     let config = OIDCConfig {
         issuer: state.settings.issuer.clone(),

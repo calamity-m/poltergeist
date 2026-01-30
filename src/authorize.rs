@@ -1,3 +1,9 @@
+//! Logic for the `/authorize` endpoint.
+//!
+//! Handles the first step of the OAuth 2.0 authorization code flow.
+//! It validates the upstream IDP's token (from the Authorization header)
+//! and, if valid, issues a temporary authorization code.
+
 use crate::{jwks::Jwks, AppState, UserIdentity};
 use axum::{
     extract::{Query, State},
@@ -10,6 +16,7 @@ use rand::{thread_rng, Rng};
 use serde::Deserialize;
 use std::sync::Arc;
 
+/// Parameters for the authorization request.
 #[derive(Deserialize)]
 #[allow(dead_code)]
 pub struct AuthorizeRequest {
@@ -20,6 +27,7 @@ pub struct AuthorizeRequest {
     // we can ignore state and other params for now
 }
 
+/// Claims expected in the upstream OIDC token.
 #[derive(Debug, Deserialize)]
 struct UpstreamClaims {
     sub: String,
@@ -27,6 +35,14 @@ struct UpstreamClaims {
     groups: Vec<String>,
 }
 
+/// Handler for the `/authorize` endpoint.
+///
+/// 1.  Checks for an `Authorization: Bearer <token>` header.
+/// 2.  If missing, redirects to the upstream OIDC provider.
+/// 3.  If present, decodes (and optionally validates) the token to extract user identity.
+/// 4.  Generates a random authorization code.
+/// 5.  Stores the code mapped to the user identity in the cache.
+/// 6.  Redirects back to the `redirect_uri` with the code.
 pub async fn authorize(
     State(state): State<Arc<AppState>>,
     Query(params): Query<AuthorizeRequest>,
@@ -77,6 +93,7 @@ pub async fn authorize(
     Redirect::to(&redirect_url).into_response()
 }
 
+/// Generates a random 16-character alphanumeric string.
 fn generate_random_code() -> String {
     thread_rng()
         .sample_iter(&Alphanumeric)
@@ -85,6 +102,9 @@ fn generate_random_code() -> String {
         .collect()
 }
 
+/// Decodes and validates a JWT against a remote JWKS.
+///
+/// Fetches the JWKS from `jwks_url` (caching it) and verifies the signature.
 async fn decode_token_with_validation(
     state: &Arc<AppState>,
     token: &str,
@@ -93,6 +113,7 @@ async fn decode_token_with_validation(
     let header = decode_header(token)?;
     let kid = header.kid.ok_or_else(|| anyhow::anyhow!("Missing kid"))?;
 
+    // Fetch JWKS, using the cache if available.
     let jwks: Arc<Jwks> = state
         .jwks_cache
         .try_get_with(jwks_url.to_string(), async {
@@ -121,6 +142,10 @@ async fn decode_token_with_validation(
     })
 }
 
+/// Decodes a JWT without validating the signature.
+///
+/// **WARNING:** This is insecure and should only be used if the token source is trusted
+/// via other means (e.g., internal network, mTLS).
 fn decode_token_without_validation(token: &str) -> Result<UserIdentity, anyhow::Error> {
     let decoded = jsonwebtoken::dangerous::insecure_decode::<UpstreamClaims>(token)?;
     Ok(UserIdentity {

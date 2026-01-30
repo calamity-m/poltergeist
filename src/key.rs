@@ -1,3 +1,8 @@
+//! cryptographic key management.
+//!
+//! Handles loading the private signing key and generating the corresponding
+//! public key JWKS (JSON Web Key Set).
+
 use crate::jwks::{Jwk, Jwks};
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use jsonwebtoken::EncodingKey;
@@ -5,19 +10,31 @@ use rsa::pkcs8::DecodePrivateKey;
 use rsa::traits::PublicKeyParts;
 use rsa::{RsaPrivateKey, RsaPublicKey};
 
+/// Holds the application's cryptographic keys.
 #[derive(Clone)]
 pub struct KeyState {
-    pub encoding_key: EncodingKey, // For jsonwebtoken signing
-    pub jwks_json: Jwks,           // Pre-computed JWKS response
+    /// The private key used for signing JWTs.
+    pub encoding_key: EncodingKey,
+    /// The pre-computed JWKS JSON string.
+    /// Served directly by the `/jwks` endpoint.
+    pub jwks_json: String,
 }
 
 impl KeyState {
+    /// Loads the private key from a PEM string and prepares the key state.
+    ///
+    /// # Arguments
+    /// * `private_key_pem` - The RSA private key in PKCS#8 PEM format.
+    ///
+    /// # Panics
+    /// Panics if the key cannot be parsed.
     pub fn new(private_key_pem: &str) -> Self {
         // 1. Load Private Key for Signing (jsonwebtoken)
         let encoding_key = EncodingKey::from_rsa_pem(private_key_pem.as_bytes())
             .expect("Failed to parse private key PEM");
 
         // 2. Load Private Key again using RSA crate to derive Public Key components
+        // (jsonwebtoken doesn't expose the raw 'n' and 'e' easily)
         let private_key_obj = RsaPrivateKey::from_pkcs8_pem(private_key_pem)
             .expect("Failed to load private key for inspection");
         let public_key_obj = private_key_obj.to_public_key();
@@ -32,13 +49,14 @@ impl KeyState {
     }
 }
 
-fn generate_jwks_json(public_key: &RsaPublicKey, kid: &str) -> Jwks {
+/// Generates the JWKS JSON string from an RSA public key.
+fn generate_jwks_json(public_key: &RsaPublicKey, kid: &str) -> String {
     // 3. Extract components for OIDC JWKS (Base64URL encoded)
     let n = URL_SAFE_NO_PAD.encode(public_key.n().to_bytes_be());
     let e = URL_SAFE_NO_PAD.encode(public_key.e().to_bytes_be());
 
     // 4. Construct the JSON Web Key Set
-    Jwks {
+    let jwks = Jwks {
         keys: vec![Jwk {
             kty: "RSA".to_string(),
             r#use: "sig".to_string(),
@@ -47,5 +65,6 @@ fn generate_jwks_json(public_key: &RsaPublicKey, kid: &str) -> Jwks {
             n,
             e,
         }],
-    }
+    };
+    serde_json::to_string(&jwks).unwrap()
 }
