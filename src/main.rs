@@ -46,6 +46,8 @@ pub struct UserIdentity {
     pub email: String,
     /// List of groups the user belongs to.
     pub groups: Vec<String>,
+    /// The client ID that initiated the authorization request.
+    pub client_id: String,
 }
 
 #[tokio::main]

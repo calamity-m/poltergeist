@@ -60,7 +60,7 @@ pub async fn authorize(
         }
     };
 
-    let user_identity = if state.settings.validate_upstream_token {
+    let mut user_identity = if state.settings.validate_upstream_token {
         match decode_token_with_validation(
             &state,
             upstream_token,
@@ -83,6 +83,8 @@ pub async fn authorize(
             }
         }
     };
+
+    user_identity.client_id = params.client_id.clone();
 
     let auth_code = generate_random_code();
     state
@@ -140,6 +142,7 @@ async fn decode_token_with_validation(
         sub: decoded.claims.sub,
         email: decoded.claims.email,
         groups: decoded.claims.groups,
+        client_id: "".to_string(),
     })
 }
 
@@ -153,6 +156,7 @@ fn decode_token_without_validation(token: &str) -> Result<UserIdentity, anyhow::
         sub: decoded.claims.sub,
         email: decoded.claims.email,
         groups: decoded.claims.groups,
+        client_id: "".to_string(),
     })
 }
 

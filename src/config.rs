@@ -37,6 +37,9 @@ pub struct StaticClient {
     pub client_secret: String,
     /// The groups (permissions) associated with this client.
     pub groups: Vec<String>,
+    /// The audience to be included in the tokens issued for this client.
+    /// If not provided, a default might be used.
+    pub audience: Option<String>,
 }
 
 /// Loads configuration from the `config.yaml` file.

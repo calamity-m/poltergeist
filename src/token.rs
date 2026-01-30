@@ -64,18 +64,69 @@ pub async fn token(
 ) -> Result<Json<TokenResponse>, (StatusCode, String)> {
     match payload.grant_type.as_str() {
         "client_credentials" => handle_client_credentials(state, payload).await,
-        "authorization_code" => {
-            // TODO: Implement authorization_code logic
-            Err((
-                StatusCode::NOT_IMPLEMENTED,
-                "authorization_code grant type not yet implemented".to_string(),
-            ))
-        }
+        "authorization_code" => handle_authorization_code(state, payload).await,
         _ => Err((
             StatusCode::BAD_REQUEST,
             format!("unsupported_grant_type: {}", payload.grant_type),
         )),
     }
+}
+
+async fn handle_authorization_code(
+    state: Arc<AppState>,
+    payload: TokenRequest,
+) -> Result<Json<TokenResponse>, (StatusCode, String)> {
+    let code = payload.code.ok_or((
+        StatusCode::BAD_REQUEST,
+        "missing code for authorization_code grant".to_string(),
+    ))?;
+
+    // Retrieve user identity from cache
+    let user_identity = state.auth_code_cache.get(&code).await.ok_or((
+        StatusCode::BAD_REQUEST,
+        "invalid or expired authorization code".to_string(),
+    ))?;
+
+    // Remove code from cache after use (one-time use)
+    state.auth_code_cache.invalidate(&code).await;
+
+    // Find the client to get its configured audience
+    let client = state
+        .settings
+        .clients
+        .iter()
+        .find(|c| c.client_id == user_identity.client_id);
+
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    let expires_in = 3600;
+
+    let aud = client
+        .and_then(|c| c.audience.clone())
+        .unwrap_or_else(|| "camunda-web".to_string());
+
+    let claims = Claims {
+        sub: user_identity.sub.clone(),
+        aud,
+        iss: state.settings.issuer.clone(),
+        iat: now,
+        exp: now + expires_in,
+        groups: user_identity.groups.clone(),
+    };
+
+    let mut header = Header::new(jsonwebtoken::Algorithm::RS256);
+    header.kid = Some("poltergeist".to_string());
+
+    let token_string = encode(&header, &claims, &state.key_state.encoding_key)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    Ok(Json(TokenResponse {
+        access_token: token_string.clone(),
+        id_token: token_string,
+        expires_in,
+    }))
 }
 
 async fn handle_client_credentials(
@@ -107,7 +158,10 @@ async fn handle_client_credentials(
 
     let claims = Claims {
         sub: client.client_id.clone(),
-        aud: "camunda-web".to_string(), // Default audience for Camunda
+        aud: client
+            .audience
+            .clone()
+            .unwrap_or_else(|| "camunda-web".to_string()),
         iss: state.settings.issuer.clone(),
         iat: now,
         exp: now + expires_in,
@@ -151,6 +205,7 @@ mod tests {
                 client_id: "test-client".to_string(),
                 client_secret: "test-secret".to_string(),
                 groups: vec!["test-group".to_string()],
+                audience: None,
             }],
         };
 
@@ -191,6 +246,7 @@ mod tests {
                 client_id: "test-client".to_string(),
                 client_secret: "test-secret".to_string(),
                 groups: vec!["test-group".to_string()],
+                audience: None,
             }],
         };
 
@@ -214,5 +270,100 @@ mod tests {
         let (status, msg) = result.unwrap_err();
         assert_eq!(status, StatusCode::UNAUTHORIZED);
         assert_eq!(msg, "invalid client credentials");
+    }
+
+    #[tokio::test]
+    async fn test_handle_client_credentials_custom_audience() {
+        let private_key_pem = std::fs::read_to_string("test/private_key.pem").unwrap();
+        let key_state = KeyState::new(&private_key_pem);
+
+        let settings = Settings {
+            issuer: "http://localhost:8080".to_string(),
+            grant_types_supported: vec!["client_credentials".to_string()],
+            port: 8080,
+            upstream_oidc_url: "http://upstream".to_string(),
+            upstream_jwks_url: "http://upstream/jwks".to_string(),
+            validate_upstream_token: false,
+            private_key_path: "test/private_key.pem".to_string(),
+            clients: vec![StaticClient {
+                client_id: "test-client".to_string(),
+                client_secret: "test-secret".to_string(),
+                groups: vec!["test-group".to_string()],
+                audience: Some("custom-audience".to_string()),
+            }],
+        };
+
+        let state = Arc::new(AppState {
+            settings,
+            auth_code_cache: Cache::builder().build(),
+            jwks_cache: Cache::builder().build(),
+            key_state,
+        });
+
+        let payload = TokenRequest {
+            grant_type: "client_credentials".to_string(),
+            code: None,
+            code_verifier: None,
+            client_id: Some("test-client".to_string()),
+            client_secret: Some("test-secret".to_string()),
+        };
+
+        let Json(response) = handle_client_credentials(state, payload).await.unwrap();
+        
+        let token_data = jsonwebtoken::dangerous::insecure_decode::<Claims>(&response.access_token).unwrap();
+        
+        assert_eq!(token_data.claims.aud, "custom-audience");
+    }
+
+    #[tokio::test]
+    async fn test_handle_authorization_code_custom_audience() {
+        let private_key_pem = std::fs::read_to_string("test/private_key.pem").unwrap();
+        let key_state = KeyState::new(&private_key_pem);
+
+        let settings = Settings {
+            issuer: "http://localhost:8080".to_string(),
+            grant_types_supported: vec!["authorization_code".to_string()],
+            port: 8080,
+            upstream_oidc_url: "http://upstream".to_string(),
+            upstream_jwks_url: "http://upstream/jwks".to_string(),
+            validate_upstream_token: false,
+            private_key_path: "test/private_key.pem".to_string(),
+            clients: vec![StaticClient {
+                client_id: "camunda-web".to_string(),
+                client_secret: "secret".to_string(),
+                groups: vec![],
+                audience: Some("custom-camunda-aud".to_string()),
+            }],
+        };
+
+        let auth_code_cache = Cache::builder().build();
+        auth_code_cache.insert("test-code".to_string(), crate::UserIdentity {
+            sub: "test-user".to_string(),
+            email: "test@example.com".to_string(),
+            groups: vec!["admin".to_string()],
+            client_id: "camunda-web".to_string(),
+        }).await;
+
+        let state = Arc::new(AppState {
+            settings,
+            auth_code_cache,
+            jwks_cache: Cache::builder().build(),
+            key_state,
+        });
+
+        let payload = TokenRequest {
+            grant_type: "authorization_code".to_string(),
+            code: Some("test-code".to_string()),
+            code_verifier: None,
+            client_id: Some("camunda-web".to_string()),
+            client_secret: None,
+        };
+
+        let Json(response) = handle_authorization_code(state, payload).await.unwrap();
+        
+        let token_data = jsonwebtoken::dangerous::insecure_decode::<Claims>(&response.access_token).unwrap();
+        
+        assert_eq!(token_data.claims.aud, "custom-camunda-aud");
+        assert_eq!(token_data.claims.sub, "test-user");
     }
 }

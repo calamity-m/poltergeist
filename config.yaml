@@ -12,3 +12,8 @@ clients:
     client_secret: "zeebe-secret"
     groups:
       - "camunda-admin"
+    audience: "zeebe-service"
+  - client_id: "camunda-web"
+    client_secret: "public" # Poltergeist currently requires a secret in config, but we can ignore it for browser flows
+    groups: []
+    audience: "camunda-identity"
