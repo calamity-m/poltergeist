@@ -8,12 +8,12 @@ upstream_jwks_url: "http://upstream-idp/.well-known/jwks.json"
 validate_upstream_token: false
 private_key_path: "test/private_key.pem"
 clients:
-  - client_id: "zeebe-worker"
-    client_secret: "zeebe-secret"
+  - client_id: "backend-service"
+    client_secret: "service-secret"
     groups:
-      - "camunda-admin"
-    audience: "zeebe-service"
-  - client_id: "camunda-web"
-    client_secret: "public" # Poltergeist currently requires a secret in config, but we can ignore it for browser flows
+      - "admin"
+    audience: "internal-api"
+  - client_id: "frontend-app"
+    client_secret: "public"
     groups: []
-    audience: "camunda-identity"
+    audience: "user-profile-api"

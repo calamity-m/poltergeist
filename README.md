@@ -2,13 +2,13 @@
 
 **The "Performative" OIDC Shim**
 
-Ghosted is a lightweight, stateless OIDC stub written in Rust. It exists solely to satisfy some tools strict OIDC requirements by bridging an existing Ingress authentication context.
+Poltergeist is a lightweight, stateless OIDC stub written in Rust. It exists solely to satisfy some tools strict OIDC requirements by bridging an existing Ingress authentication context.
 
 ## Overview
 
 * **The Problem:** some tools requires an OIDC Provider (Issuer, Token, JWKS). The corporate Identity Provider refuses to support public clients or the specific claims some tools needs.
 * **The Reality:** All traffic arrives via an Ingress Gateway. Requests are *already* authenticated. The Ingress injects the upstream JWT into the `Authorization` header.
-* **The Solution:** Ghosted acts as a "Yes Man." It accepts the upstream header, pretends to perform an OIDC login flow (to satisfy the some tools SPA), and re-signs the upstream identity into a format some tools accepts.
+* **The Solution:** Poltergeist acts as a "Yes Man." It accepts the upstream header, pretends to perform an OIDC login flow (to satisfy the some tools SPA), and re-signs the upstream identity into a format some tools accepts.
 
 ## Features
 
