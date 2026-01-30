@@ -24,6 +24,8 @@ pub struct Settings {
     pub validate_upstream_token: bool,
     /// Path to the RSA private key (PEM format) used for signing tokens.
     pub private_key_path: String,
+    /// Default token expiration time in seconds.
+    pub token_expires_in: u64,
     /// Static clients for M2M (client_credentials) flow.
     pub clients: Vec<StaticClient>,
 }

@@ -229,6 +229,7 @@ mod tests {
             upstream_jwks_url: format!("{}/jwks.json", mock_server.uri()),
             validate_upstream_token: true,
             private_key_path: "test/private_key.pem".to_string(),
+            token_expires_in: 3600,
             clients: vec![],
         };
 
@@ -296,6 +297,7 @@ mod tests {
             upstream_jwks_url: "".to_string(),
             validate_upstream_token: true,
             private_key_path: "test/private_key.pem".to_string(),
+            token_expires_in: 3600,
             clients: vec![],
         };
 

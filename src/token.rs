@@ -120,7 +120,7 @@ async fn handle_authorization_code(
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_secs();
-    let expires_in = 3600;
+    let expires_in = state.settings.token_expires_in;
 
     let aud = client
         .and_then(|c| c.audience.clone())
@@ -198,7 +198,7 @@ async fn handle_client_credentials(
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_secs();
-    let expires_in = 3600;
+    let expires_in = state.settings.token_expires_in;
 
     let aud = client
         .audience
@@ -253,6 +253,7 @@ mod tests {
             upstream_jwks_url: "http://upstream/jwks".to_string(),
             validate_upstream_token: false,
             private_key_path: "test/private_key.pem".to_string(),
+            token_expires_in: 3600,
             clients: vec![StaticClient {
                 client_id: "test-client".to_string(),
                 client_secret: "test-secret".to_string(),
@@ -294,6 +295,7 @@ mod tests {
             upstream_jwks_url: "http://upstream/jwks".to_string(),
             validate_upstream_token: false,
             private_key_path: "test/private_key.pem".to_string(),
+            token_expires_in: 3600,
             clients: vec![StaticClient {
                 client_id: "test-client".to_string(),
                 client_secret: "test-secret".to_string(),
@@ -337,6 +339,7 @@ mod tests {
             upstream_jwks_url: "http://upstream/jwks".to_string(),
             validate_upstream_token: false,
             private_key_path: "test/private_key.pem".to_string(),
+            token_expires_in: 3600,
             clients: vec![StaticClient {
                 client_id: "test-client".to_string(),
                 client_secret: "test-secret".to_string(),
@@ -380,6 +383,7 @@ mod tests {
             upstream_jwks_url: "http://upstream/jwks".to_string(),
             validate_upstream_token: false,
             private_key_path: "test/private_key.pem".to_string(),
+            token_expires_in: 3600,
             clients: vec![StaticClient {
                 client_id: "web-app".to_string(),
                 client_secret: "secret".to_string(),
@@ -432,6 +436,7 @@ mod tests {
             upstream_jwks_url: "http://upstream/jwks".to_string(),
             validate_upstream_token: false,
             private_key_path: "test/private_key.pem".to_string(),
+            token_expires_in: 3600,
             clients: vec![StaticClient {
                 client_id: "default-client".to_string(),
                 client_secret: "secret".to_string(),
