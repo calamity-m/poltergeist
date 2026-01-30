@@ -3,7 +3,7 @@
 //! Handles the exchange of authorization codes (or client credentials) for access and ID tokens.
 
 use crate::downstream;
-use crate::{AppState, upstream};
+use crate::AppState;
 use axum::Json;
 use axum::extract::State;
 use axum::http::{HeaderMap, StatusCode};
@@ -44,13 +44,12 @@ pub struct TokenResponse {
 /// 2.  Retrieves the user identity:
 ///     -   For `authorization_code`: Uses the provided code to lookup the user identity
 ///         in the `auth_code_cache` (originally stored during the `/authorize` flow).
-///         Falls back to the `Authorization` header if the code is missing or invalid.
 ///     -   For `client_credentials`: From the static configuration.
 /// 3.  Validates client credentials if necessary.
 /// 4.  Mints a new downstream JWT (Access Token & ID Token).
 /// 5.  Returns the tokens in a standard OAuth 2.0 JSON response.
 #[tracing::instrument(
-    skip(state, headers, payload),
+    skip(state, _headers, payload),
     fields(
         grant_type = payload.grant_type,
         client_id = payload.client_id,
@@ -59,13 +58,13 @@ pub struct TokenResponse {
 )]
 pub async fn token(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
+    _headers: HeaderMap,
     Json(payload): Json<TokenRequest>,
 ) -> Result<Json<TokenResponse>, (StatusCode, String)> {
     tracing::info!("Received token request: grant_type={}", payload.grant_type);
     match payload.grant_type.as_str() {
         "client_credentials" => handle_client_credentials(state, payload).await,
-        "authorization_code" => handle_authorization_code(state, headers, payload).await,
+        "authorization_code" => handle_authorization_code(state, payload).await,
         _ => {
             tracing::warn!("Unsupported grant type: {}", payload.grant_type);
             Err((
@@ -78,7 +77,6 @@ pub async fn token(
 
 async fn handle_authorization_code(
     state: Arc<AppState>,
-    headers: HeaderMap,
     payload: TokenRequest,
 ) -> Result<Json<TokenResponse>, (StatusCode, String)> {
     // First ensure we're using a valid client
@@ -127,22 +125,19 @@ async fn handle_authorization_code(
         private_client.audience.clone()
     };
 
-    // Try to get identity from cache via code, or fallback to header
-    let upstream_claims = if let Some(code) = payload.code {
-        if let Some(claims) = state.auth_code_cache.get(&code).await {
-            // Success! remove it from cache (single use)
-            state.auth_code_cache.invalidate(&code).await;
-            claims
-        } else {
-            // If code provided but not in cache, and we have a header, maybe we can fallback?
-            // Actually, if a code is provided and it's invalid, that's usually an error.
-            // But let's try the header if it exists for backward compatibility.
-            upstream::get_upstream_identity(&state, &headers).await?
-        }
-    } else {
-        // No code provided, MUST have a header
-        upstream::get_upstream_identity(&state, &headers).await?
-    };
+    // Try to get identity from cache via code
+    let code = payload
+        .code
+        .ok_or_else(|| (StatusCode::BAD_REQUEST, "no code provided".to_string()))?;
+
+    let upstream_claims = state
+        .auth_code_cache
+        .get(&code)
+        .await
+        .ok_or_else(|| (StatusCode::BAD_REQUEST, "invalid or expired code".to_string()))?;
+
+    // Success! remove it from cache (single use)
+    state.auth_code_cache.invalidate(&code).await;
 
     tracing::info!(
         "Exchanging code (performative) for client: {}, subject: {}",
@@ -412,28 +407,21 @@ mod tests {
             email: "test@example.com".to_string(),
             exp: 10000000000,
         };
-        let upstream_token = jsonwebtoken::encode(
-            &Header::default(),
-            &upstream_claims,
-            &jsonwebtoken::EncodingKey::from_secret("secret".as_ref()),
-        )
-        .unwrap();
-
-        let mut headers = HeaderMap::new();
-        headers.insert(
-            "Authorization",
-            format!("Bearer {}", upstream_token).parse().unwrap(),
-        );
+        let code = "any-code".to_string();
+        state
+            .auth_code_cache
+            .insert(code.clone(), upstream_claims)
+            .await;
 
         let payload = TokenRequest {
             grant_type: "authorization_code".to_string(),
-            code: Some("any-code".to_string()),
+            code: Some(code),
             code_verifier: None,
             client_id: Some("web-app".to_string()),
             client_secret: None,
         };
 
-        let Json(response) = handle_authorization_code(state, headers, payload)
+        let Json(response) = handle_authorization_code(state, payload)
             .await
             .unwrap();
 
@@ -496,9 +484,7 @@ mod tests {
             client_secret: Some("top-secret".to_string()),
         };
 
-        let headers = HeaderMap::new(); // No Authorization header needed!
-
-        let Json(response) = handle_authorization_code(state, headers, payload)
+        let Json(response) = handle_authorization_code(state, payload)
             .await
             .unwrap();
 
