@@ -13,7 +13,7 @@ use axum::{
     routing::{get, post},
 };
 use moka::future::Cache;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -34,17 +34,6 @@ pub struct AppState {
     jwks_cache: Cache<String, jwks::Jwks>,
     /// State managing the application's signing keys and pre-computed JWKS.
     key_state: key::KeyState,
-}
-
-/// Represents the identity of an authenticated user.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct UserIdentity {
-    /// Subject identifier (e.g., username or user ID).
-    pub sub: String,
-    /// User's email address.
-    pub email: String,
-    /// The client ID that initiated the authorization request.
-    pub client_id: String,
 }
 
 #[tokio::main]

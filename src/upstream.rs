@@ -1,5 +1,4 @@
 use crate::AppState;
-use crate::UserIdentity;
 use crate::jwks::Jwks;
 use axum::http::{HeaderMap, StatusCode, header};
 use jsonwebtoken::{DecodingKey, Validation, decode, decode_header};
@@ -17,7 +16,7 @@ pub struct UpstreamClaims {
 pub async fn get_upstream_identity(
     state: &Arc<AppState>,
     headers: &HeaderMap,
-) -> Result<UserIdentity, (StatusCode, String)> {
+) -> Result<UpstreamClaims, (StatusCode, String)> {
     let upstream_token = match headers
         .get(header::AUTHORIZATION)
         .and_then(|header| header.to_str().ok())
@@ -60,7 +59,7 @@ async fn decode_token_with_validation(
     state: &Arc<AppState>,
     token: &str,
     jwks_url: &str,
-) -> Result<UserIdentity, anyhow::Error> {
+) -> Result<UpstreamClaims, anyhow::Error> {
     let header = decode_header(token)?;
     let kid = header.kid.ok_or_else(|| anyhow::anyhow!("Missing kid"))?;
 
@@ -82,21 +81,13 @@ async fn decode_token_with_validation(
 
     let decoding_key = DecodingKey::from_rsa_components(&jwk.n, &jwk.e)?;
     let mut validation = Validation::new(header.alg);
-    validation.validate_exp = true;
+    validation.validate_exp = false;
     let decoded = decode::<UpstreamClaims>(token, &decoding_key, &validation)?;
 
-    Ok(UserIdentity {
-        sub: decoded.claims.sub,
-        email: decoded.claims.email,
-        client_id: "".to_string(),
-    })
+    Ok(decoded.claims)
 }
 
-fn decode_token_without_validation(token: &str) -> Result<UserIdentity, anyhow::Error> {
+fn decode_token_without_validation(token: &str) -> Result<UpstreamClaims, anyhow::Error> {
     let decoded = jsonwebtoken::dangerous::insecure_decode::<UpstreamClaims>(token)?;
-    Ok(UserIdentity {
-        sub: decoded.claims.sub,
-        email: decoded.claims.email,
-        client_id: "".to_string(),
-    })
+    Ok(decoded.claims)
 }

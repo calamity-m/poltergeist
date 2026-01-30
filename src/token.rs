@@ -10,7 +10,6 @@ use axum::http::{HeaderMap, StatusCode};
 use jsonwebtoken::{Header, encode};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Parameters for the token exchange request.
 #[derive(Deserialize, Debug)]
@@ -92,18 +91,18 @@ async fn handle_authorization_code(
 
     // We ignore the code parameter because this is a "performative" shim.
     // The actual identity comes from the Authorization header injected by the gateway.
-    let mut user_identity = upstream::get_upstream_identity(&state, &headers).await?;
-    user_identity.client_id = client_id.clone();
+    let upstream_claims = upstream::get_upstream_identity(&state, &headers).await?;
 
     tracing::info!(
         audit = true,
         "Exchanging code (performative) for client: {}, subject: {}",
         client_id,
-        user_identity.sub
+        upstream_claims.sub
     );
 
-    let claims =
-        downstream::create_downstream_claims_for_public(&state, client, user_identity).await;
+    tracing::debug!("Issuing tokens with audience: {}", client.audience);
+
+    let claims = downstream::create_downstream_claims_for_public(&state, client, upstream_claims).await;
 
     let mut header = Header::new(jsonwebtoken::Algorithm::RS256);
     header.kid = Some("poltergeist".to_string());
@@ -113,7 +112,11 @@ async fn handle_authorization_code(
         (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
     })?;
 
-    tracing::info!(audit = true, "Tokens successfully issued for client");
+    tracing::info!(
+        audit = true,
+        "Tokens successfully issued for client: {}",
+        client_id
+    );
 
     Ok(Json(TokenResponse {
         access_token: token_string.clone(),

@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use tracing::debug;
 
 use crate::{
-    AppState, UserIdentity,
+    AppState,
     config::{PrivateClient, PublicClient},
     upstream::UpstreamClaims,
 };
@@ -34,7 +34,7 @@ pub struct DownstreamClaims {
 pub async fn create_downstream_claims_for_public(
     state: &Arc<AppState>,
     client: &PublicClient,
-    identity: UserIdentity,
+    identity: UpstreamClaims,
 ) -> DownstreamClaims {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
