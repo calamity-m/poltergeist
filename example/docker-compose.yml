@@ -9,14 +9,8 @@ services:
       - ../test/private_key.pem:/etc/poltergeist/private_key.pem
     environment:
       - POLTERGEIST_PORT=8080
-      - POLTERGEIST_TELEMETRY__AXUM_LEVEL=debug
     expose:
       - "8080"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
-      interval: 2s
-      timeout: 2s
-      retries: 10
 
   ingress-proxy:
     image: nginx:alpine
@@ -25,8 +19,7 @@ services:
     ports:
       - "8080:80"
     depends_on:
-      poltergeist:
-        condition: service_healthy
+      - poltergeist
 
   downstream-app:
     image: alpine
