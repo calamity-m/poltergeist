@@ -44,14 +44,33 @@ pub struct Settings {
     pub telemetry: TelemetryConfig,
 }
 
-fn default_issuer() -> String { "http://localhost:8080".to_string() }
-fn default_grant_types() -> Vec<String> { vec!["authorization_code".to_string(), "client_credentials".to_string()] }
-fn default_port() -> u16 { 8080 }
-fn default_upstream_oidc() -> String { "http://localhost:8081/login".to_string() }
-fn default_upstream_jwks() -> String { "http://localhost:8081/.well-known/jwks.json".to_string() }
-fn default_validate_upstream() -> bool { false }
-fn default_key_path() -> String { "test/private_key.pem".to_string() }
-fn default_token_expiry() -> u64 { 3600 }
+fn default_issuer() -> String {
+    "http://localhost:8080".to_string()
+}
+fn default_grant_types() -> Vec<String> {
+    vec![
+        "authorization_code".to_string(),
+        "client_credentials".to_string(),
+    ]
+}
+fn default_port() -> u16 {
+    8080
+}
+fn default_upstream_oidc() -> String {
+    "http://localhost:8081/login".to_string()
+}
+fn default_upstream_jwks() -> String {
+    "http://localhost:8081/.well-known/jwks.json".to_string()
+}
+fn default_validate_upstream() -> bool {
+    false
+}
+fn default_key_path() -> String {
+    "test/private_key.pem".to_string()
+}
+fn default_token_expiry() -> u64 {
+    3600
+}
 
 impl Default for Settings {
     fn default() -> Self {
@@ -193,12 +212,16 @@ pub fn load_config() -> Settings {
         })
         .unwrap();
 
-    cfg.try_deserialize::<Settings>()
-        .map_err(|e| {
-            tracing::error!("Failed to deserialize configuration: {}", e);
-            e
-        })
-        .unwrap()
+    match cfg.try_deserialize::<Settings>() {
+        Ok(settings) => settings,
+        Err(e) => {
+            tracing::warn!(
+                "Failed to deserialize configuration, using defaults. Error: {}",
+                e
+            );
+            Settings::default()
+        }
+    }
 }
 
 #[cfg(test)]

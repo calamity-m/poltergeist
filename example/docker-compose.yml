@@ -9,6 +9,7 @@ services:
       - ../test/private_key.pem:/etc/poltergeist/private_key.pem
     environment:
       - POLTERGEIST_PORT=8080
+      - POLTERGEIST_TELEMETRY__AXUM_LEVEL=debug
     expose:
       - "8080"
     healthcheck:
