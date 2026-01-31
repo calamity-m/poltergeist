@@ -1,3 +1,9 @@
+//! Logic for generating "Downstream" JWTs.
+//!
+//! Downstream tokens are the ones minted and signed by Poltergeist itself.
+//! These tokens are returned to the application during the OAuth2/OIDC token exchange.
+//! They represent the "re-signed" identity derived from the upstream source.
+
 use std::{
     collections::HashMap,
     sync::Arc,

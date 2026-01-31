@@ -1,3 +1,11 @@
+//! Logic for handling "Upstream" JWTs.
+//!
+//! In the Poltergeist flow, an Upstream JWT is the token provided by an external
+//! authentication source (like an Ingress Gateway or a corporate IdP) via the
+//! `Authorization: Bearer <token>` header.
+//!
+//! Poltergeist extracts the identity from this token to populate the "Downstream" token.
+
 use crate::AppState;
 use crate::jwks::Jwks;
 use axum::http::{HeaderMap, StatusCode, header};
@@ -27,6 +35,10 @@ pub struct AuthorizationCodeContext {
     pub nonce: Option<String>,
 }
 
+/// Extracts the identity from the `Authorization` header.
+///
+/// Depending on configuration, it either validates the signature against a remote JWKS
+/// or performs an insecure decode (dangerous, but useful in trusted network environments).
 pub async fn get_upstream_identity(
     state: &Arc<AppState>,
     headers: &HeaderMap,
