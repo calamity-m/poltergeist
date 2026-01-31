@@ -169,7 +169,7 @@ private_key_path: "test/private_key.pem"
 
 -   `GET /.well-known/openid-configuration`: OIDC discovery document.
 -   `GET /authorize`: Authorization endpoint.
--   `POST /token`: Token exchange endpoint.
+-   `POST /token`: Token endpoint.
 -   `GET /jwks`: JSON Web Key Set endpoint.
 
 ## Usage Examples
@@ -187,7 +187,7 @@ curl -i "http://localhost:8080/authorize?client_id=frontend-app&redirect_uri=htt
      -H "Authorization: Bearer <YOUR_UPSTREAM_JWT>"
 ```
 
-### 3. Token Exchange (Authorization Code)
+### 3. Token Retrieval (Authorization Code Exchange)
 ```bash
 curl -X POST http://localhost:8080/token \
      -H "Content-Type: application/json" \
