@@ -25,7 +25,8 @@ sequenceDiagram
     User->>Ingress: Access Application URL
     Ingress-->>User: Redirect to Upstream IdP
     User->>Upstream: Authenticate (Login/MFA)
-    Upstream-->>User: Redirect back to Ingress (Rest of flow omitted for brevity)
+    Note over User, Upstream: 3.1. Rest of OIDC flow omitted for the sake of brevity
+    Upstream-->>User: Redirect back to Ingress
     
     User->>Ingress: GET spa
     Ingress->>Client: Load SPA
