@@ -38,6 +38,14 @@ pub struct DownstreamClaims {
     pub other: HashMap<String, Value>,
 }
 
+/// Generic builder for creating downstream tokens.
+///
+/// This function constructs the standard JWT claims, sets the expiration and issued-at times,
+/// and ensures that any additional claims provided in the `other` map do not conflict
+/// with the standard OIDC fields (sub, aud, iss, etc.).
+///
+/// Used by both authorization code flow (where `other` comes from upstream user identity)
+/// and client credentials flow (via `create_downstream_claims_for_private`).
 pub fn create_downstream_claims(
     issuer: String,
     token_expires_in: u64,
@@ -78,6 +86,15 @@ pub fn create_downstream_claims(
     claims
 }
 
+/// Specialized builder for Machine-to-Machine (M2M) tokens.
+///
+/// This is a convenience wrapper around `create_downstream_claims` for the
+/// Client Credentials grant.
+///
+/// Key differences:
+/// *   **Subject (`sub`):** Forced to be the `client_id` (since there is no human user).
+/// *   **Nonce:** Always `None` (not used in M2M).
+/// *   **Other Claims:** Always empty (no upstream identity to merge).
 pub async fn create_downstream_claims_for_private(
     state: &Arc<AppState>,
     client: &PrivateClient,
