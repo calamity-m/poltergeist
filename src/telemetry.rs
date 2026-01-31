@@ -1,3 +1,9 @@
+//! Observability and Telemetry setup.
+//!
+//! This module configures the `tracing` subscriber, including:
+//! - Local logging (JSON or Pretty format).
+//! - OpenTelemetry (OTLP) integration for distributed tracing.
+
 use opentelemetry::trace::TracerProvider;
 use tracing_subscriber::{
     EnvFilter,
@@ -8,6 +14,9 @@ use tracing_subscriber::{
 
 use crate::config::{LoggingFormat, TelemetryConfig};
 
+/// A guard that ensures OpenTelemetry spans are flushed before the application exits.
+///
+/// When this struct is dropped, it shuts down the tracer provider.
 pub struct OtelGuard {
     tracer_provider: Option<opentelemetry_sdk::trace::SdkTracerProvider>,
 }
@@ -59,7 +68,10 @@ fn init_tracer_provider(name: String) -> opentelemetry_sdk::trace::SdkTracerProv
         .build()
 }
 
-// Initialize tracing-subscriber and return OtelGuard for opentelemetry-related termination processing
+/// Initializes the global tracing subscriber with the provided configuration.
+///
+/// Returns an [`OtelGuard`] which should be held in `main` to ensure that
+/// any buffered telemetry data is flushed on shutdown.
 pub fn init(config: &TelemetryConfig) -> OtelGuard {
     let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
         EnvFilter::new(format!(

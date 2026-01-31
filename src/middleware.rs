@@ -1,3 +1,9 @@
+//! Custom Axum/Tower middlewares for Poltergeist.
+//!
+//! This module provides:
+//! - `TraceParentLayer`: Propagation of OpenTelemetry trace contexts from incoming headers.
+//! - `AuditLayer`: Structured logging for authentication events and request auditing.
+
 use std::{
     future::Future,
     pin::Pin,
@@ -73,6 +79,10 @@ where
     }
 }
 
+/// A layer that extracts the `traceparent` header and sets it as the parent of the current tracing span.
+///
+/// This ensures that Poltergeist's logs and spans are correctly linked to the upstream
+/// request (e.g., from an Ingress or another microservice).
 #[derive(Debug, Clone, Default)]
 pub struct TraceParentLayer;
 
@@ -139,6 +149,10 @@ where
     }
 }
 
+/// A layer that logs structured audit events for every request.
+///
+/// Logs include information about the endpoint, host, HTTP method, and status code,
+/// specifically tagged with `audit = true` for easy filtering in log aggregation tools.
 #[derive(Debug, Clone, Default)]
 pub struct AuditLayer;
 
