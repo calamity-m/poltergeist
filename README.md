@@ -101,6 +101,27 @@ sequenceDiagram
     Poltergeist-->>Backend: 200 OK (Tokens)
 ```
 
+### The "M2M" Flow - Service-to-Service
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Service as Backend Service (M2M)
+    participant Poltergeist as Poltergeist (Shim)
+
+    Note over Service: Internal Service needing <br/>access to another API
+
+    Service->>Poltergeist: POST /token <br/>(client_credentials, client_id, secret)
+    
+    rect rgb(45, 45, 45)
+    Note over Poltergeist: Logic
+    Poltergeist->>Poltergeist: Validate `client_id` & `secret` <br/>(against static config)
+    Poltergeist->>Poltergeist: Mint Access Token <br/>(sub=client_id)
+    end
+    
+    Poltergeist-->>Service: 200 OK (Access Token)
+```
+
 ## Features
 
 - **Stateless Architecture:** Uses `moka` for high-performance, in-memory caching of auth codes.
