@@ -97,7 +97,10 @@ async fn authorize_impl(
         .await;
 
     tracing::info!("Issued authorization code for client: {}", params.client_id);
-    let redirect_url = format!("{}?code={}", params.redirect_uri, auth_code);
+    let mut redirect_url = format!("{}?code={}", params.redirect_uri, auth_code);
+    if let Some(state) = params.state {
+        redirect_url.push_str(&format!("&state={}", state));
+    }
     Redirect::to(&redirect_url).into_response()
 }
 
@@ -233,6 +236,7 @@ mod tests {
             .to_str()
             .unwrap();
         assert!(location.starts_with("http://client/cb?code="));
+        assert!(location.contains("state=test-state"));
     }
 
     #[tokio::test]
