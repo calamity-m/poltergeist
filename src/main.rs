@@ -37,7 +37,7 @@ pub struct AppState {
     /// Cache for upstream JWKS to avoid frequent network requests during token validation.
     jwks_cache: Cache<String, jwks::Jwks>,
     /// Cache for authorization codes to support confidential clients.
-    auth_code_cache: Cache<String, upstream::UpstreamClaims>,
+    auth_code_cache: Cache<String, upstream::AuthorizationCodeContext>,
     /// State managing the application's signing keys and pre-computed JWKS.
     key_state: key::KeyState,
 }

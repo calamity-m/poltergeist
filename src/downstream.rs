@@ -28,6 +28,9 @@ pub struct DownstreamClaims {
     pub exp: u64,
     /// Issued at (UNIX timestamp).
     pub iat: u64,
+    /// Nonce (optional)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub nonce: Option<String>,
 }
 
 pub fn create_downstream_claims(
@@ -36,6 +39,7 @@ pub fn create_downstream_claims(
     client_id: String,
     audience: String,
     subject: String,
+    nonce: Option<String>,
 ) -> DownstreamClaims {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -49,6 +53,7 @@ pub fn create_downstream_claims(
         iss: issuer,
         iat: now,
         exp: now + token_expires_in,
+        nonce,
     };
 
     debug!("created claims - {:?}", claims);
@@ -65,5 +70,6 @@ pub async fn create_downstream_claims_for_private(
         client.client_id.clone(),
         client.audience.clone(),
         client.client_id.clone(),
+        None,
     )
 }

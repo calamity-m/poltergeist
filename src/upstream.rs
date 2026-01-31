@@ -13,6 +13,14 @@ pub struct UpstreamClaims {
     pub exp: u64,
 }
 
+/// Context stored for an authorization code, linking the upstream identity
+/// to the downstream request parameters (like nonce).
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct AuthorizationCodeContext {
+    pub claims: UpstreamClaims,
+    pub nonce: Option<String>,
+}
+
 pub async fn get_upstream_identity(
     state: &Arc<AppState>,
     headers: &HeaderMap,

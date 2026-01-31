@@ -25,6 +25,7 @@ pub struct AuthorizeRequest {
     response_type: String,
     code_challenge: Option<String>,
     state: Option<String>,
+    nonce: Option<String>,
 }
 
 /// Handler for the `/authorize` endpoint via GET.
@@ -91,9 +92,14 @@ async fn authorize_impl(
     };
 
     let auth_code = generate_random_code();
+    let context = upstream::AuthorizationCodeContext {
+        claims: identity,
+        nonce: params.nonce,
+    };
+
     state
         .auth_code_cache
-        .insert(auth_code.clone(), identity)
+        .insert(auth_code.clone(), context)
         .await;
 
     tracing::info!("Issued authorization code for client: {}", params.client_id);
@@ -214,6 +220,7 @@ mod tests {
             response_type: "code".to_string(),
             code_challenge: Some("challenge".to_string()),
             state: Some("test-state".to_string()),
+            nonce: Some("test-nonce".to_string()),
         };
 
         let mut headers = HeaderMap::new();
@@ -320,6 +327,7 @@ mod tests {
             response_type: "code".to_string(),
             code_challenge: Some("challenge".to_string()),
             state: None,
+            nonce: None,
         };
 
         let mut headers = HeaderMap::new();
@@ -382,6 +390,7 @@ mod tests {
             response_type: "code".to_string(),
             code_challenge: Some("challenge".to_string()),
             state: None,
+            nonce: None,
         };
 
         let headers = HeaderMap::new(); // No Authorization header

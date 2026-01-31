@@ -125,7 +125,7 @@ async fn handle_authorization_code(
         .code
         .ok_or_else(|| (StatusCode::BAD_REQUEST, "no code provided".to_string()))?;
 
-    let upstream_claims = state.auth_code_cache.get(&code).await.ok_or_else(|| {
+    let context = state.auth_code_cache.get(&code).await.ok_or_else(|| {
         (
             StatusCode::BAD_REQUEST,
             "invalid or expired code".to_string(),
@@ -138,7 +138,7 @@ async fn handle_authorization_code(
     tracing::info!(
         "Exchanging code (performative) for client: {}, subject: {}",
         payload.client_id,
-        upstream_claims.sub
+        context.claims.sub
     );
 
     tracing::debug!("Issuing tokens with audience: {}", aud);
@@ -148,7 +148,8 @@ async fn handle_authorization_code(
         state.settings.token_expires_in,
         payload.client_id,
         aud,
-        upstream_claims.sub,
+        context.claims.sub,
+        context.nonce,
     );
 
     let mut header = Header::new(jsonwebtoken::Algorithm::RS256);
@@ -399,10 +400,14 @@ mod tests {
             email: "test@example.com".to_string(),
             exp: 10000000000,
         };
+        let context = crate::upstream::AuthorizationCodeContext {
+            claims: upstream_claims,
+            nonce: Some("test-nonce".to_string()),
+        };
         let code = "any-code".to_string();
         state
             .auth_code_cache
-            .insert(code.clone(), upstream_claims)
+            .insert(code.clone(), context)
             .await;
 
         let payload = TokenRequest {
@@ -421,6 +426,7 @@ mod tests {
 
         assert_eq!(token_data.claims.aud, "custom-app-aud");
         assert_eq!(token_data.claims.sub, "test-user");
+        assert_eq!(token_data.claims.nonce, Some("test-nonce".to_string()));
     }
 
     #[tokio::test]
@@ -459,10 +465,14 @@ mod tests {
             email: "confid@example.com".to_string(),
             exp: 10000000000,
         };
+        let context = crate::upstream::AuthorizationCodeContext {
+            claims: upstream_claims,
+            nonce: None,
+        };
         let code = "confidential-code".to_string();
         state
             .auth_code_cache
-            .insert(code.clone(), upstream_claims)
+            .insert(code.clone(), context)
             .await;
 
         // 2. Call handler with code and secret
