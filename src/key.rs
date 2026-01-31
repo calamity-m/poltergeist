@@ -5,7 +5,7 @@
 
 use crate::jwks::{Jwk, Jwks};
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
-use jsonwebtoken::EncodingKey;
+use jsonwebtoken::{DecodingKey, EncodingKey};
 use rsa::pkcs8::DecodePrivateKey;
 use rsa::traits::PublicKeyParts;
 use rsa::{RsaPrivateKey, RsaPublicKey};
@@ -15,6 +15,8 @@ use rsa::{RsaPrivateKey, RsaPublicKey};
 pub struct KeyState {
     /// The private key used for signing JWTs.
     pub encoding_key: EncodingKey,
+    /// The public key used for validating JWTs signed by us.
+    pub decoding_key: DecodingKey,
     /// The pre-computed JWKS JSON string.
     /// Served directly by the `/jwks` endpoint.
     pub jwks_json: String,
@@ -43,8 +45,15 @@ impl KeyState {
         // 3. Generate JWKS JSON once at startup
         let jwks_json = generate_jwks_json(&public_key_obj, "poltergeist");
 
+        // 4. Create DecodingKey from public key components for internal validation
+        let n_str = URL_SAFE_NO_PAD.encode(public_key_obj.n().to_bytes_be());
+        let e_str = URL_SAFE_NO_PAD.encode(public_key_obj.e().to_bytes_be());
+        let decoding_key = DecodingKey::from_rsa_components(&n_str, &e_str)
+            .expect("Failed to create decoding key");
+
         Self {
             encoding_key,
+            decoding_key,
             jwks_json,
         }
     }

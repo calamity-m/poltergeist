@@ -29,6 +29,7 @@ mod middleware;
 mod telemetry;
 mod token;
 mod upstream;
+mod userinfo;
 
 /// Global application state shared across handlers.
 pub struct AppState {
@@ -84,6 +85,7 @@ async fn main() {
             get(authorize::authorize_get).post(authorize::authorize_post),
         )
         .route("/token", post(token::token))
+        .route("/userinfo", get(userinfo::userinfo))
         .route("/jwks", get(jwks::jwks))
         .layer(
             tower_http::trace::TraceLayer::new_for_http()
@@ -118,6 +120,7 @@ struct OIDCConfig {
     issuer: String,
     authorization_endpoint: String,
     token_endpoint: String,
+    userinfo_endpoint: String,
     jwks_uri: String,
     response_types_supported: Vec<String>,
     subject_types_supported: Vec<String>,
@@ -134,6 +137,7 @@ async fn openid_configuration(State(state): State<Arc<AppState>>) -> Json<OIDCCo
         issuer: state.settings.issuer.clone(),
         authorization_endpoint: format!("{}/authorize", state.settings.issuer),
         token_endpoint: format!("{}/token", state.settings.issuer),
+        userinfo_endpoint: format!("{}/userinfo", state.settings.issuer),
         jwks_uri: format!("{}/jwks", state.settings.issuer),
         response_types_supported: vec!["code".to_string()],
         subject_types_supported: vec!["public".to_string()],
