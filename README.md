@@ -25,7 +25,7 @@ sequenceDiagram
     User->>Ingress: Access Application URL
     Ingress-->>User: Redirect to Upstream IdP
     User->>Upstream: Authenticate (Login/MFA)
-    Upstream-->>User: Redirect back to Ingress
+    Upstream-->>User: Redirect back to Ingress (Rest of flow omitted for brevity)
     
     User->>Ingress: GET spa
     Ingress->>Client: Load SPA
