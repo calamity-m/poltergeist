@@ -79,7 +79,10 @@ async fn main() {
             "/.well-known/openid-configuration",
             get(openid_configuration),
         )
-        .route("/authorize", get(authorize::authorize))
+        .route(
+            "/authorize",
+            get(authorize::authorize_get).post(authorize::authorize_post),
+        )
         .route("/token", post(token::token))
         .route("/jwks", get(jwks::jwks))
         .layer(
