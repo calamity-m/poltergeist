@@ -10,7 +10,7 @@ Poltergeist is a lightweight, stateless OIDC stub written in Rust. It exists sol
 * **The Reality:** All traffic arrives via an Ingress Gateway. Requests are *already* authenticated. The Ingress injects the upstream JWT into the `Authorization` header.
 * **The Solution:** Poltergeist acts as a "Yes Man." It accepts the upstream header, pretends to perform an OIDC login flow (to satisfy the some tools SPA), and re-signs the upstream identity into a format some tools accepts.
 
-### The "Shim" Flow
+### The "Shim" Flow - SPA with Public Client
 
 ```mermaid
 sequenceDiagram
@@ -55,6 +55,50 @@ sequenceDiagram
     end
     
     Poltergeist-->>Client: 200 OK (Tokens)
+```
+
+### The "Shim" Flow - Backend with Private Client
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant User as User (Browser)
+    participant Ingress as Ingress Gateway
+    participant Upstream as Upstream IdP
+    participant Poltergeist as Poltergeist (Shim)
+    participant Backend as Backend App (Private Client)
+
+    Note over User, Upstream: 0. Initial Ingress Auth (Standard OIDC)
+    User->>Ingress: Access Application URL
+    Ingress-->>User: Redirect to Upstream IdP
+    User->>Upstream: Authenticate
+    Upstream-->>User: Redirect back to Ingress
+    
+    User->>Backend: Access Secure Resource
+    Backend-->>User: Redirect to Identity Provider (Poltergeist)
+    
+    User->>Ingress: GET /authorize?...
+    Note right of Ingress: 1. Ingress validates User Session
+    Ingress->>Poltergeist: GET /authorize... <br/>(Adds `Authorization: Bearer <Upstream_JWT>`)
+    
+    rect rgb(45, 45, 45)
+    Note over Poltergeist: 2. Shim Logic
+    Poltergeist->>Poltergeist: Extract Identity from `Authorization` Header
+    Poltergeist->>Poltergeist: Store `auth_code` -> `Identity`
+    end
+    
+    Poltergeist-->>User: 302 Found (Location: callback_url?code=xyz)
+    
+    User->>Backend: GET /callback?code=xyz
+    Backend->>Poltergeist: POST /token (code=xyz, client_id, client_secret)
+    
+    rect rgb(45, 45, 45)
+    Note over Poltergeist: 3. Token Minting
+    Poltergeist->>Poltergeist: Retrieve Identity & Validate Client Secret
+    Poltergeist->>Poltergeist: Sign new JWTs
+    end
+    
+    Poltergeist-->>Backend: 200 OK (Tokens)
 ```
 
 ## Features
