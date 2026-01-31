@@ -122,6 +122,7 @@ fn generate_random_code() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashMap;
     use crate::{
         config::{self, PublicClient},
         jwks::{Jwk, Jwks},
@@ -204,6 +205,7 @@ mod tests {
             sub: "test-user".to_string(),
             email: "test@example.com".to_string(),
             exp: 10000000000, // far in the future
+            other: HashMap::new(),
         };
 
         let mut header = Header::new(Algorithm::RS256);
@@ -311,6 +313,7 @@ mod tests {
             sub: "test-user".to_string(),
             email: "test@example.com".to_string(),
             exp: 10000000000,
+            other: HashMap::new(),
         };
 
         let mut header = Header::new(Algorithm::RS256);

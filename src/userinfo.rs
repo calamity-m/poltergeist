@@ -60,6 +60,7 @@ pub async fn userinfo(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashMap;
     use crate::config::Settings;
     use crate::key::KeyState;
     use moka::future::Cache;
@@ -99,6 +100,7 @@ mod tests {
             "aud".to_string(),
             "user-123".to_string(),
             None,
+            HashMap::new(),
         );
 
         let mut header = Header::new(Algorithm::RS256);

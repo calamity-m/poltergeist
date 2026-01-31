@@ -150,6 +150,7 @@ async fn handle_authorization_code(
         aud,
         context.claims.sub,
         context.nonce,
+        context.claims.other,
     );
 
     let mut header = Header::new(jsonwebtoken::Algorithm::RS256);
@@ -225,6 +226,7 @@ async fn handle_client_credentials(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashMap;
     use crate::config::{PrivateClient, PublicClient, Settings};
     use crate::downstream::DownstreamClaims;
     use crate::key::KeyState;
@@ -399,6 +401,7 @@ mod tests {
             sub: "test-user".to_string(),
             email: "test@example.com".to_string(),
             exp: 10000000000,
+            other: HashMap::new(),
         };
         let context = crate::upstream::AuthorizationCodeContext {
             claims: upstream_claims,
@@ -464,6 +467,7 @@ mod tests {
             sub: "confidential-user".to_string(),
             email: "confid@example.com".to_string(),
             exp: 10000000000,
+            other: HashMap::new(),
         };
         let context = crate::upstream::AuthorizationCodeContext {
             claims: upstream_claims,

@@ -1,9 +1,11 @@
 use std::{
+    collections::HashMap,
     sync::Arc,
     time::{SystemTime, UNIX_EPOCH},
 };
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use tracing::debug;
 
 use crate::{
@@ -31,6 +33,9 @@ pub struct DownstreamClaims {
     /// Nonce (optional)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub nonce: Option<String>,
+    /// Everything else lands here
+    #[serde(flatten)]
+    pub other: HashMap<String, Value>,
 }
 
 pub fn create_downstream_claims(
@@ -40,6 +45,7 @@ pub fn create_downstream_claims(
     audience: String,
     subject: String,
     nonce: Option<String>,
+    other: HashMap<String, Value>,
 ) -> DownstreamClaims {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -54,6 +60,7 @@ pub fn create_downstream_claims(
         iat: now,
         exp: now + token_expires_in,
         nonce,
+        other,
     };
 
     debug!("created claims - {:?}", claims);
@@ -71,5 +78,6 @@ pub async fn create_downstream_claims_for_private(
         client.audience.clone(),
         client.client_id.clone(),
         None,
+        HashMap::new(),
     )
 }

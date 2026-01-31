@@ -5,12 +5,18 @@ use jsonwebtoken::{DecodingKey, Validation, decode, decode_header};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
+use std::collections::HashMap;
+use serde_json::Value;
+
 /// Claims from the upstream IDP
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct UpstreamClaims {
     pub sub: String,
     pub email: String,
     pub exp: u64,
+    /// Everything else lands here
+    #[serde(flatten)]
+    pub other: HashMap<String, Value>,
 }
 
 /// Context stored for an authorization code, linking the upstream identity
@@ -29,7 +35,10 @@ pub async fn get_upstream_identity(
         Some(h) => h,
         None => {
             tracing::info!("No Authorization header found");
-            return Err((StatusCode::UNAUTHORIZED, "missing authorization header".to_string()));
+            return Err((
+                StatusCode::UNAUTHORIZED,
+                "missing authorization header".to_string(),
+            ));
         }
     };
 
