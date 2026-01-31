@@ -204,7 +204,7 @@ async fn handle_client_credentials(
             )
         })?;
 
-    let claims = downstream::create_downstream_claims_for_private(&state, client).await;
+    let claims = downstream::create_downstream_claims_for_client_credentials(&state, client).await;
 
     let mut header = Header::new(jsonwebtoken::Algorithm::RS256);
     header.kid = Some("poltergeist".to_string());

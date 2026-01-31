@@ -45,7 +45,7 @@ pub struct DownstreamClaims {
 /// with the standard OIDC fields (sub, aud, iss, etc.).
 ///
 /// Used by both authorization code flow (where `other` comes from upstream user identity)
-/// and client credentials flow (via `create_downstream_claims_for_private`).
+/// and client credentials flow (via `create_downstream_claims_for_client_credentials`).
 pub fn create_downstream_claims(
     issuer: String,
     token_expires_in: u64,
@@ -95,7 +95,7 @@ pub fn create_downstream_claims(
 /// *   **Subject (`sub`):** Forced to be the `client_id` (since there is no human user).
 /// *   **Nonce:** Always `None` (not used in M2M).
 /// *   **Other Claims:** Always empty (no upstream identity to merge).
-pub async fn create_downstream_claims_for_private(
+pub async fn create_downstream_claims_for_client_credentials(
     state: &Arc<AppState>,
     client: &PrivateClient,
 ) -> DownstreamClaims {
