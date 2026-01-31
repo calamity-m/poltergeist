@@ -17,21 +17,22 @@ sequenceDiagram
     autonumber
     participant User as User (Browser)
     participant Ingress as Ingress Gateway
-    participant Upstream as Upstream IdP
     participant Poltergeist as Poltergeist (Shim)
     participant Client as Client App (SPA)
+    participant Upstream as Upstream IdP
 
     Note over User, Upstream: 0. Initial Ingress Auth (Standard OIDC)
     User->>Ingress: Access Application URL
     Ingress-->>User: Redirect to Upstream IdP
     User->>Upstream: Authenticate (Login/MFA)
-    Upstream-->>User: Redirect back to Ingress (Set Session/Cookie)
+    Upstream-->>User: Redirect back to Ingress
     
-    User->>Client: Load SPA
+    User->>Ingress: GET spa
+    Ingress->>Client: Load SPA
     Client->>User: Redirect to Identity Provider (Poltergeist)
     
     User->>Ingress: GET /authorize?...
-    Note right of Ingress: 1. Ingress validates User Session
+    Note right of Ingress: 1. Ingress validates User
     Ingress->>Poltergeist: GET /authorize... <br/>(Adds `Authorization: Bearer <Upstream_JWT>`)
     
     rect rgb(45, 45, 45)
