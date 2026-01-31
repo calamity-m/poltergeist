@@ -84,6 +84,7 @@ sequenceDiagram
     rect rgb(45, 45, 45)
     Note over Poltergeist: 2. Shim Logic
     Poltergeist->>Poltergeist: Extract Identity from `Authorization` Header
+    Poltergeist->>Poltergeist: Generate `auth_code`
     Poltergeist->>Poltergeist: Store `auth_code` -> `Identity`
     end
     
