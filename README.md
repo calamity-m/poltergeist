@@ -17,10 +17,17 @@ sequenceDiagram
     autonumber
     participant User as User (Browser)
     participant Ingress as Ingress Gateway
+    participant Upstream as Upstream IdP
     participant Poltergeist as Poltergeist (Shim)
     participant Client as Client App (SPA)
 
-    User->>Client: Access Application
+    Note over User, Upstream: 0. Initial Ingress Auth (Standard OIDC)
+    User->>Ingress: Access Application URL
+    Ingress-->>User: Redirect to Upstream IdP
+    User->>Upstream: Authenticate (Login/MFA)
+    Upstream-->>User: Redirect back to Ingress (Set Session/Cookie)
+    
+    User->>Client: Load SPA
     Client->>User: Redirect to Identity Provider (Poltergeist)
     
     User->>Ingress: GET /authorize?...
