@@ -22,13 +22,12 @@ use tracing::Level;
 
 mod authorize;
 mod config;
-mod downstream;
 mod jwks;
+mod jwt;
 mod key;
 mod middleware;
 mod telemetry;
 mod token;
-mod upstream;
 mod userinfo;
 
 /// Global application state shared across handlers.
@@ -38,7 +37,7 @@ pub struct AppState {
     /// Cache for upstream JWKS to avoid frequent network requests during token validation.
     jwks_cache: Cache<String, jwks::Jwks>,
     /// Cache for authorization codes to support confidential clients.
-    auth_code_cache: Cache<String, upstream::AuthorizationCodeContext>,
+    auth_code_cache: Cache<String, jwt::upstream::AuthorizationCodeContext>,
     /// State managing the application's signing keys and pre-computed JWKS.
     key_state: key::KeyState,
 }

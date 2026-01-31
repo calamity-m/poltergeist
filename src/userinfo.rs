@@ -2,7 +2,7 @@
 //!
 //! Validates the access token (issued by Poltergeist) and returns the claims.
 
-use crate::{AppState, downstream::DownstreamClaims};
+use crate::{AppState, jwt::downstream::DownstreamClaims};
 use axum::{
     extract::State,
     http::{HeaderMap, StatusCode, header},
@@ -20,9 +20,17 @@ pub async fn userinfo(
     // 1. Extract the token from Authorization header
     let auth_header = headers
         .get(header::AUTHORIZATION)
-        .ok_or((StatusCode::UNAUTHORIZED, "Missing Authorization header".to_string()))?
+        .ok_or((
+            StatusCode::UNAUTHORIZED,
+            "Missing Authorization header".to_string(),
+        ))?
         .to_str()
-        .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid Authorization header".to_string()))?;
+        .map_err(|_| {
+            (
+                StatusCode::BAD_REQUEST,
+                "Invalid Authorization header".to_string(),
+            )
+        })?;
 
     if !auth_header.starts_with("Bearer ") {
         return Err((StatusCode::BAD_REQUEST, "Invalid auth scheme".to_string()));
@@ -38,19 +46,16 @@ pub async fn userinfo(
     // We set the required audience to nothing for now, or we could check against specific clients.
     // Since we don't know which client is calling, validation of audience is tricky without more context
     // or simply disabling it if we trust the signature (since we signed it).
-    // For strictness, we might want to check if the audience matches *any* known client, but 
-    // simply validating the signature and expiration is usually sufficient for UserInfo 
+    // For strictness, we might want to check if the audience matches *any* known client, but
+    // simply validating the signature and expiration is usually sufficient for UserInfo
     // as long as the token was issued by us.
-    validation.validate_aud = false; 
+    validation.validate_aud = false;
 
-    let token_data = decode::<DownstreamClaims>(
-        token,
-        &state.key_state.decoding_key,
-        &validation,
-    ).map_err(|e| {
-        tracing::warn!("Failed to validate token at userinfo: {}", e);
-        (StatusCode::UNAUTHORIZED, "Invalid token".to_string())
-    })?;
+    let token_data = decode::<DownstreamClaims>(token, &state.key_state.decoding_key, &validation)
+        .map_err(|e| {
+            tracing::warn!("Failed to validate token at userinfo: {}", e);
+            (StatusCode::UNAUTHORIZED, "Invalid token".to_string())
+        })?;
 
     tracing::info!("Served userinfo for subject: {}", token_data.claims.sub);
 
@@ -60,11 +65,11 @@ pub async fn userinfo(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::HashMap;
     use crate::config::Settings;
     use crate::key::KeyState;
-    use moka::future::Cache;
     use jsonwebtoken::{Header, encode};
+    use moka::future::Cache;
+    use std::collections::HashMap;
 
     #[tokio::test]
     async fn test_userinfo_success() {
@@ -93,7 +98,7 @@ mod tests {
         });
 
         // Mint a valid token
-        let claims = crate::downstream::create_downstream_claims(
+        let claims = crate::jwt::downstream::create_downstream_claims(
             "http://localhost:8080".to_string(),
             3600,
             "client-id".to_string(),
@@ -106,11 +111,7 @@ mod tests {
         let mut header = Header::new(Algorithm::RS256);
         header.kid = Some("poltergeist".to_string());
 
-        let token = encode(
-            &header,
-            &claims,
-            &key_state.encoding_key,
-        ).unwrap();
+        let token = encode(&header, &claims, &key_state.encoding_key).unwrap();
 
         let mut headers = HeaderMap::new();
         headers.insert(

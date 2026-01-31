@@ -3,7 +3,7 @@
 //! Handles the exchange of authorization codes (or client credentials) for access and ID tokens.
 
 use crate::AppState;
-use crate::downstream;
+use crate::jwt::downstream;
 use axum::Json;
 use axum::extract::State;
 use axum::http::{HeaderMap, StatusCode};
@@ -226,11 +226,11 @@ async fn handle_client_credentials(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::HashMap;
     use crate::config::{PrivateClient, PublicClient, Settings};
-    use crate::downstream::DownstreamClaims;
+    use crate::jwt::downstream::DownstreamClaims;
     use crate::key::KeyState;
     use moka::future::Cache;
+    use std::collections::HashMap;
 
     #[tokio::test]
     async fn test_handle_client_credentials_success() {
@@ -397,21 +397,18 @@ mod tests {
         });
 
         // Mock upstream token
-        let upstream_claims = crate::upstream::UpstreamClaims {
+        let upstream_claims = crate::jwt::upstream::UpstreamClaims {
             sub: "test-user".to_string(),
             email: "test@example.com".to_string(),
             exp: 10000000000,
             other: HashMap::new(),
         };
-        let context = crate::upstream::AuthorizationCodeContext {
+        let context = crate::jwt::upstream::AuthorizationCodeContext {
             claims: upstream_claims,
             nonce: Some("test-nonce".to_string()),
         };
         let code = "any-code".to_string();
-        state
-            .auth_code_cache
-            .insert(code.clone(), context)
-            .await;
+        state.auth_code_cache.insert(code.clone(), context).await;
 
         let payload = TokenRequest {
             grant_type: "authorization_code".to_string(),
@@ -463,21 +460,18 @@ mod tests {
         });
 
         // 1. Put identity in cache
-        let upstream_claims = crate::upstream::UpstreamClaims {
+        let upstream_claims = crate::jwt::upstream::UpstreamClaims {
             sub: "confidential-user".to_string(),
             email: "confid@example.com".to_string(),
             exp: 10000000000,
             other: HashMap::new(),
         };
-        let context = crate::upstream::AuthorizationCodeContext {
+        let context = crate::jwt::upstream::AuthorizationCodeContext {
             claims: upstream_claims,
             nonce: None,
         };
         let code = "confidential-code".to_string();
-        state
-            .auth_code_cache
-            .insert(code.clone(), context)
-            .await;
+        state.auth_code_cache.insert(code.clone(), context).await;
 
         // 2. Call handler with code and secret
         let payload = TokenRequest {

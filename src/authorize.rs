@@ -4,7 +4,7 @@
 //! It validates the upstream IDP's token (from the Authorization header)
 //! and, if valid, issues a temporary authorization code.
 
-use crate::{AppState, upstream};
+use crate::{AppState, jwt::upstream};
 use axum::{
     Form,
     extract::{Query, State},
@@ -127,7 +127,7 @@ mod tests {
         config::{self, PublicClient},
         jwks::{Jwk, Jwks},
         key,
-        upstream::UpstreamClaims,
+        jwt::upstream::UpstreamClaims,
     };
     use axum::http::{StatusCode, header};
     use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
