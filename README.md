@@ -10,6 +10,44 @@ Poltergeist is a lightweight, stateless OIDC stub written in Rust. It exists sol
 * **The Reality:** All traffic arrives via an Ingress Gateway. Requests are *already* authenticated. The Ingress injects the upstream JWT into the `Authorization` header.
 * **The Solution:** Poltergeist acts as a "Yes Man." It accepts the upstream header, pretends to perform an OIDC login flow (to satisfy the some tools SPA), and re-signs the upstream identity into a format some tools accepts.
 
+### The "Shim" Flow
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant User as User (Browser)
+    participant Ingress as Ingress Gateway
+    participant Poltergeist as Poltergeist (Shim)
+    participant Client as Client App (SPA)
+
+    User->>Client: Access Application
+    Client->>User: Redirect to Identity Provider (Poltergeist)
+    
+    User->>Ingress: GET /authorize?...
+    Note right of Ingress: 1. Ingress validates User Session
+    Ingress->>Poltergeist: GET /authorize... <br/>(Adds `Authorization: Bearer <Upstream_JWT>`)
+    
+    rect rgb(45, 45, 45)
+    Note over Poltergeist: 2. Shim Logic
+    Poltergeist->>Poltergeist: Extract Identity from `Authorization` Header
+    Poltergeist->>Poltergeist: Generate `auth_code`
+    Poltergeist->>Poltergeist: Store `auth_code` -> `Identity` (in-memory)
+    end
+    
+    Poltergeist-->>User: 302 Found (Location: callback_url?code=xyz)
+    
+    User->>Client: GET /callback?code=xyz
+    Client->>Poltergeist: POST /token (code=xyz...)
+    
+    rect rgb(45, 45, 45)
+    Note over Poltergeist: 3. Token Minting
+    Poltergeist->>Poltergeist: Retrieve Identity using `code`
+    Poltergeist->>Poltergeist: Sign new JWTs (ID Token, Access Token)
+    end
+    
+    Poltergeist-->>Client: 200 OK (Tokens)
+```
+
 ## Features
 
 - **Stateless Architecture:** Uses `moka` for high-performance, in-memory caching of auth codes.
