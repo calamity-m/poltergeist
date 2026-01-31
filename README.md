@@ -25,18 +25,19 @@ sequenceDiagram
     User->>Ingress: Access Application URL
     Ingress-->>User: Redirect to Upstream IdP
     User->>Upstream: Authenticate (Login/MFA)
-    Note over User, Upstream: 3.1. Rest of OIDC flow omitted for the sake of brevity
+    Note over User, Upstream: 1. Rest of OIDC flow omitted for the sake of brevity
     
     User->>Ingress: GET spa
-    Ingress->>Client: Load SPA
+    Ingress->>Client: Fetch SPA
+    User->>Client: Load SPA
     Client->>User: Redirect to Identity Provider (Poltergeist)
     
     User->>Ingress: GET /authorize?...
-    Note right of Ingress: 1. Ingress validates User
+    Note right of Ingress: 2. Ingress validates User
     Ingress->>Poltergeist: GET /authorize... <br/>(Adds `Authorization: Bearer <Upstream_JWT>`)
     
     rect rgb(45, 45, 45)
-    Note over Poltergeist: 2. Shim Logic
+    Note over Poltergeist: 3. Shim Logic
     Poltergeist->>Poltergeist: Extract Identity from `Authorization` Header
     Poltergeist->>Poltergeist: Generate `auth_code`
     Poltergeist->>Poltergeist: Store `auth_code` -> `Identity` (in-memory)
@@ -48,7 +49,7 @@ sequenceDiagram
     Client->>Poltergeist: POST /token (code=xyz...)
     
     rect rgb(45, 45, 45)
-    Note over Poltergeist: 3. Token Minting
+    Note over Poltergeist: 4. Token Minting
     Poltergeist->>Poltergeist: Retrieve Identity using `code`
     Poltergeist->>Poltergeist: Sign new JWTs (ID Token, Access Token)
     end
