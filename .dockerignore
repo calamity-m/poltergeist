@@ -1,0 +1,24 @@
+# Build artifacts
+target/
+
+# Version control
+.git/
+.github/
+
+# Local configuration and temporary files
+.gemini/
+config.yaml
+poltergeist-config.yaml
+
+# Tests and examples
+tests/
+example/
+test/
+
+# Sensitive information (even if placeholders)
+*.pem
+
+# Documentation
+README.md
+Dockerfile
+docker-compose.yml
