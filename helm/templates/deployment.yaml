@@ -71,7 +71,7 @@ spec:
             name: {{ include "poltergeist.fullname" . }}-config
         - name: secret-volume
           secret:
-            secretName: {{ include "poltergeist.fullname" . }}-secret
+            secretName: {{ .Values.existingSecret | default (printf "%s-secret" (include "poltergeist.fullname" .)) }}
         {{- with .Values.volumes }}
         {{- toYaml . | nindent 8 }}
         {{- end }}

@@ -178,6 +178,13 @@ poltergeistConfig:
     sqlx_level: "info"
     service_name: "poltergeist"
 
+# Specifies an existing secret to use for the private key.
+# The secret must contain a key named 'private_key.pem'.
+# If not specified, a secret will be created using the privateKeyPem value below.
+existingSecret: ""
+
+# The private key to use if existingSecret is not specified.
+# WARNING: This key is for DEMO purposes ONLY. Do NOT use this in production.
 privateKeyPem: |-
   -----BEGIN PRIVATE KEY-----
   MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDPZqcHmjRA5+ks
