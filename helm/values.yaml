@@ -153,6 +153,16 @@ tolerations: []
 
 affinity: {}
 
+# This is for setting extra environment variables to the container
+env: []
+  # - name: DB_PASSWORD
+  #   valueFrom:
+  #     secretKeyRef:
+  #       name: db-secret
+  #       key: DB_PASSWORD
+  # - name: yolo
+  #   value: yolo
+
 poltergeistConfig:
   issuer: "http://localhost:8080"
   grant_types_supported:
