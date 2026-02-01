@@ -56,14 +56,27 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- with .Values.volumeMounts }}
           volumeMounts:
+            - name: config-volume
+              mountPath: /app/config.yaml
+              subPath: config.yaml
+            - name: secret-volume
+              mountPath: /etc/poltergeist/secrets/private_key.pem
+              subPath: private_key.pem
+              readOnly: true
+            {{- with .Values.volumeMounts }}
             {{- toYaml . | nindent 12 }}
-          {{- end }}
-      {{- with .Values.volumes }}
+            {{- end }}
       volumes:
+        - name: config-volume
+          configMap:
+            name: {{ include "poltergeist.fullname" . }}-config
+        - name: secret-volume
+          secret:
+            secretName: {{ include "poltergeist.fullname" . }}-secret
+        {{- with .Values.volumes }}
         {{- toYaml . | nindent 8 }}
-      {{- end }}
+        {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
