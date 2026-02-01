@@ -179,9 +179,12 @@ poltergeistConfig:
     service_name: "poltergeist"
 
 # Specifies an existing secret to use for the private key.
-# The secret must contain a key named 'private_key.pem'.
+# The secret must contain a key named 'private_key.pem' (or whatever is specified in existingSecretKey).
 # If not specified, a secret will be created using the privateKeyPem value below.
 existingSecret: ""
+
+# Specifies the key within the secret to use. Defaults to "private_key.pem".
+existingSecretKey: "private_key.pem"
 
 # The private key to use if existingSecret is not specified.
 # WARNING: This key is for DEMO purposes ONLY. Do NOT use this in production.

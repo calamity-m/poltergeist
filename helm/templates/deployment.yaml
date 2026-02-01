@@ -60,7 +60,7 @@ spec:
               subPath: config.yaml
             - name: secret-volume
               mountPath: /etc/poltergeist/secrets/private_key.pem
-              subPath: private_key.pem
+              subPath: {{ .Values.existingSecretKey | default "private_key.pem" }}
               readOnly: true
             {{- with .Values.volumeMounts }}
             {{- toYaml . | nindent 12 }}
