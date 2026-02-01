@@ -23,9 +23,17 @@ WORKDIR /app
 # Copy the binary from the builder stage
 COPY --from=builder /app/target/release/poltergeist /usr/local/bin/poltergeist
 
+# Ensure the binary is executable by everyone so we can run as any user
+RUN chmod 755 /usr/local/bin/poltergeist
+
+# Create a non-root user to run as by default, though --user will override this
+RUN useradd -m -u 1000 -U poltergeist
+
 # Create a default empty config if needed, or rely on env vars
 # Users should mount their own config.yaml or use POLTERGEIST_ env vars
 
 EXPOSE 8080
+
+USER 1000
 
 ENTRYPOINT ["poltergeist"]
