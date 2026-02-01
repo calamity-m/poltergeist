@@ -219,4 +219,4 @@ curl -X POST http://localhost:8080/token \
 
 ## License
 
-[Add License Here]
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
