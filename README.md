@@ -6,9 +6,9 @@ Poltergeist is a lightweight, stateless OIDC stub written in Rust. It exists sol
 
 ## Overview
 
-* **The Problem:** some tools requires an OIDC Provider (Issuer, Token, JWKS). The corporate Identity Provider refuses to support public clients or the specific claims some tools needs.
-* **The Reality:** All traffic arrives via an Ingress Gateway. Requests are *already* authenticated. The Ingress injects the upstream JWT into the `Authorization` header.
-* **The Solution:** Poltergeist acts as a "Yes Man." It accepts the upstream header, pretends to perform an OIDC login flow (to satisfy the some tools SPA), and re-signs the upstream identity into a format some tools accepts.
+* **The Problem:** Internally OIDC is being used, but legacy constraints and other architectural hurdles mean you can't quite achieve the world you want—the world that modern applications you might want to host expect and require.
+* **The Reality:** You're already authenticating people in some way, and you just need a stop-gap to make things work. You've already got a gateway that is injecting a header, and you just want to somehow force that new tool you forked, cloned, or bought to play nice with it.
+* **The Solution:** Poltergeist acts as a "Yes Man." It accepts the upstream header, pretends to perform an OIDC login flow (to satisfy the application's SPA or backend), and re-signs the upstream identity into a format the application accepts.
 
 ### The "Shim" Flow - SPA with Public Client
 
