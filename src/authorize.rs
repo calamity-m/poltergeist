@@ -185,6 +185,7 @@ mod tests {
                 audience: "aud".to_string(),
             }],
             telemetry: Default::default(),
+            ..config::Settings::default()
         };
 
         let app_private_key = RsaPrivateKey::new(&mut rng, 2048).unwrap();
@@ -293,6 +294,7 @@ mod tests {
                 audience: "aud".to_string(),
             }],
             telemetry: Default::default(),
+            ..config::Settings::default()
         };
 
         let app_private_key = RsaPrivateKey::new(&mut rng, 2048).unwrap();
@@ -378,6 +380,7 @@ mod tests {
                 audience: "aud".to_string(),
             }],
             telemetry: Default::default(),
+            ..config::Settings::default()
         };
 
         let state = Arc::new(AppState {

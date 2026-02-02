@@ -88,6 +88,7 @@ mod tests {
             private_clients: vec![],
             public_clients: vec![],
             telemetry: Default::default(),
+            ..Settings::default()
         };
 
         let state = Arc::new(AppState {
@@ -141,6 +142,7 @@ mod tests {
             private_clients: vec![],
             public_clients: vec![],
             telemetry: Default::default(),
+            ..Settings::default()
         };
 
         let state = Arc::new(AppState {

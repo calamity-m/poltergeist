@@ -253,6 +253,7 @@ mod tests {
             }],
             public_clients: vec![],
             telemetry: Default::default(),
+            ..Settings::default()
         };
 
         let state = Arc::new(AppState {
@@ -296,6 +297,7 @@ mod tests {
             }],
             public_clients: vec![],
             telemetry: Default::default(),
+            ..Settings::default()
         };
 
         let state = Arc::new(AppState {
@@ -341,6 +343,7 @@ mod tests {
             }],
             public_clients: vec![],
             telemetry: Default::default(),
+            ..Settings::default()
         };
 
         let state = Arc::new(AppState {
@@ -387,6 +390,7 @@ mod tests {
                 audience: "custom-app-aud".to_string(),
             }],
             telemetry: Default::default(),
+            ..Settings::default()
         };
 
         let state = Arc::new(AppState {
@@ -450,6 +454,7 @@ mod tests {
             }],
             public_clients: vec![],
             telemetry: Default::default(),
+            ..Settings::default()
         };
 
         let state = Arc::new(AppState {
