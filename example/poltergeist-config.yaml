@@ -1,24 +1,58 @@
+# Poltergeist Example Configuration
+
+# The base URL identifying this OIDC provider.
+# This URL will be used as the 'iss' (issuer) claim in tokens.
 issuer: "http://poltergeist:8080"
+
+# Port number the server will listen on.
 port: 8080
+
+# URL to the upstream OIDC provider's authorization endpoint.
+# Poltergeist redirects unauthenticated users here.
 upstream_oidc_url: "http://upstream-idp/auth"
+
+# URL to the upstream OIDC provider's JWKS endpoint.
+# Required if 'validate_upstream_token' is set to true.
 upstream_jwks_url: "http://upstream-idp/.well-known/jwks.json"
+
+# Whether to strictly validate the signature of the upstream token.
+# If false (default), the token is decoded without signature verification.
 validate_upstream_token: false
+
+# Path to the RSA private key (PEM format) used for signing downstream tokens.
 signing_key_path: "/etc/poltergeist/private_key.pem"
+
+# Default token expiration time in seconds (default: 3600).
 token_expires_in: 3600
-# Optional: Custom endpoint paths
+
+# Optional: Custom endpoint paths.
+# These allow you to change the default OIDC paths.
+# For example, setting authorize_path to "/login" would change the endpoint from /authorize to /login.
 authorize_path: "/authorize"
 token_path: "/token"
 jwks_path: "/jwks"
 userinfo_path: "/userinfo"
+
+# Static Confidential Clients (for Service-to-Service M2M client_credentials flow).
 confidential_clients:
   - client_id: "example-m2m"
+    # The client secret can be provided directly:
     client_secret: "example-secret"
+    # Or read from an environment variable:
+    # client_secret_env: "M2M_CLIENT_SECRET"
     audience: "example-audience"
+
+# Static Public Clients (for Browser-based authorization_code flow).
 public_clients:
   - client_id: "example-app"
     audience: "example-api"
+
+# Telemetry and Logging configuration.
 telemetry:
+  # Output format: "json" (default) or "pretty".
   format: "pretty"
+  # Global log level: "trace", "debug", "info", "warn", "error".
   level: "info"
+  # Specific log level for the Axum framework.
   axum_level: "warn"
   service_name: "poltergeist-example"
