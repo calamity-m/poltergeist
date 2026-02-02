@@ -124,10 +124,28 @@ pub struct PrivateClient {
     /// The client's unique identifier.
     pub client_id: String,
     /// The client's secret.
-    pub client_secret: String,
+    pub client_secret: Option<String>,
+    /// The environment variable to read the client's secret from.
+    pub client_secret_env: Option<String>,
     /// The audience to be included in the tokens issued for this client.
     /// If not provided, a default might be used.
     pub audience: String,
+}
+
+impl PrivateClient {
+    /// Retrieves the secret for this client.
+    ///
+    /// Checks `client_secret` first, then looks up the environment variable
+    /// specified in `client_secret_env`.
+    pub fn get_secret(&self) -> Option<String> {
+        if let Some(ref s) = self.client_secret {
+            return Some(s.clone());
+        }
+        if let Some(ref env_var) = self.client_secret_env {
+            return std::env::var(env_var).ok();
+        }
+        None
+    }
 }
 
 /// Represents a static OAuth2 client for browser-to-service communication.

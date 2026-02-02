@@ -102,6 +102,7 @@ async fn handle_authorization_code(
                 )
             })?;
 
+        let effective_secret = private_client.get_secret();
         // For private clients, we MUST have a secret and it MUST match
         let secret = payload.client_secret.as_deref().ok_or_else(|| {
             (
@@ -110,7 +111,7 @@ async fn handle_authorization_code(
             )
         })?;
 
-        if private_client.client_secret != secret {
+        if effective_secret.as_deref() != Some(secret) {
             return Err((
                 StatusCode::UNAUTHORIZED,
                 "invalid client secret".to_string(),
@@ -195,7 +196,10 @@ async fn handle_client_credentials(
         .settings
         .private_clients
         .iter()
-        .find(|c| c.client_id == payload.client_id && c.client_secret == *client_secret)
+        .find(|c| {
+            c.client_id == payload.client_id
+                && c.get_secret().as_deref() == Some(client_secret.as_str())
+        })
         .ok_or_else(|| {
             tracing::warn!("Invalid client credentials for: {}", payload.client_id);
             (
@@ -248,7 +252,8 @@ mod tests {
             token_expires_in: 3600,
             private_clients: vec![PrivateClient {
                 client_id: "test-client".to_string(),
-                client_secret: "test-secret".to_string(),
+                client_secret: Some("test-secret".to_string()),
+                client_secret_env: None,
                 audience: "aud".to_string(),
             }],
             public_clients: vec![],
@@ -292,7 +297,8 @@ mod tests {
             token_expires_in: 3600,
             private_clients: vec![PrivateClient {
                 client_id: "test-client".to_string(),
-                client_secret: "test-secret".to_string(),
+                client_secret: Some("test-secret".to_string()),
+                client_secret_env: None,
                 audience: "aud".to_string(),
             }],
             public_clients: vec![],
@@ -338,7 +344,8 @@ mod tests {
             token_expires_in: 3600,
             private_clients: vec![PrivateClient {
                 client_id: "test-client".to_string(),
-                client_secret: "test-secret".to_string(),
+                client_secret: Some("test-secret".to_string()),
+                client_secret_env: None,
                 audience: "custom-audience".to_string(),
             }],
             public_clients: vec![],
@@ -449,7 +456,8 @@ mod tests {
             token_expires_in: 3600,
             private_clients: vec![PrivateClient {
                 client_id: "confidential-client".to_string(),
-                client_secret: "top-secret".to_string(),
+                client_secret: Some("top-secret".to_string()),
+                client_secret_env: None,
                 audience: "confidential-aud".to_string(),
             }],
             public_clients: vec![],
@@ -495,5 +503,54 @@ mod tests {
 
         assert_eq!(token_data.claims.aud, "confidential-aud");
         assert_eq!(token_data.claims.sub, "confidential-user");
+    }
+
+    #[tokio::test]
+    async fn test_handle_client_credentials_env_secret() {
+        let env_var_name = "TEST_CLIENT_SECRET_ENV_VAR";
+        unsafe { std::env::set_var(env_var_name, "env-secret-value") };
+
+        let private_key_pem = std::fs::read_to_string("test/private_key.pem").unwrap();
+        let key_state = KeyState::new(&private_key_pem);
+
+        let settings = Settings {
+            issuer: "http://localhost:8080".to_string(),
+            grant_types_supported: vec!["client_credentials".to_string()],
+            port: 8080,
+            upstream_oidc_url: "http://upstream".to_string(),
+            upstream_jwks_url: "http://upstream/jwks".to_string(),
+            validate_upstream_token: false,
+            private_key_path: "test/private_key.pem".to_string(),
+            token_expires_in: 3600,
+            private_clients: vec![PrivateClient {
+                client_id: "env-client".to_string(),
+                client_secret: None,
+                client_secret_env: Some(env_var_name.to_string()),
+                audience: "aud".to_string(),
+            }],
+            public_clients: vec![],
+            telemetry: Default::default(),
+            ..Settings::default()
+        };
+
+        let state = Arc::new(AppState {
+            settings,
+            jwks_cache: Cache::builder().build(),
+            auth_code_cache: Cache::builder().build(),
+            key_state,
+        });
+
+        let payload = TokenRequest {
+            grant_type: "client_credentials".to_string(),
+            code: None,
+            code_verifier: None,
+            client_id: "env-client".to_string(),
+            client_secret: Some("env-secret-value".to_string()),
+        };
+
+        let Json(response) = handle_client_credentials(state, payload).await.unwrap();
+        assert!(!response.access_token.is_empty());
+        
+        unsafe { std::env::remove_var(env_var_name) };
     }
 }
