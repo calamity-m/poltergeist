@@ -141,14 +141,11 @@ The application is configured via `config.yaml`. An example configuration:
 
 ```yaml
 issuer: "http://localhost:8080"
-grant_types_supported:
-  - "authorization_code"
-  - "client_credentials"
 port: 8080
 upstream_oidc_url: "http://upstream-idp/auth"
 upstream_jwks_url: "http://upstream-idp/.well-known/jwks.json"
 validate_upstream_token: false
-private_key_path: "test/private_key.pem"
+signing_key_path: "test/private_key.pem"
 ```
 
 ## Running the Application
@@ -158,7 +155,7 @@ private_key_path: "test/private_key.pem"
     ```bash
     openssl genpkey -algorithm RSA -out private_key.pem -pkeyopt rsa_keygen_bits:2048
     ```
-    Ensure the path to this key is correctly set in `config.yaml` under `private_key_path`.
+    Ensure the path to this key is correctly set in `config.yaml` under `signing_key_path`.
 
 2.  **Run with Cargo:**
     ```bash

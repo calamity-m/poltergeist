@@ -10,9 +10,6 @@ pub struct Settings {
     /// The base URL identifying this OIDC provider (e.g., "http://localhost:8080").
     #[serde(default = "default_issuer")]
     pub issuer: String,
-    /// List of OAuth 2.0 grant types supported (e.g., ["authorization_code", "client_credentials"]).
-    #[serde(default = "default_grant_types")]
-    pub grant_types_supported: Vec<String>,
     /// Port number the server will listen on.
     #[serde(default = "default_port")]
     pub port: u16,
@@ -29,8 +26,8 @@ pub struct Settings {
     #[serde(default = "default_validate_upstream")]
     pub validate_upstream_token: bool,
     /// Path to the RSA private key (PEM format) used for signing tokens.
-    #[serde(default = "default_key_path")]
-    pub private_key_path: String,
+    #[serde(default = "default_signing_key_path")]
+    pub signing_key_path: String,
     /// Default token expiration time in seconds.
     #[serde(default = "default_token_expiry")]
     pub token_expires_in: u64,
@@ -59,12 +56,6 @@ pub struct Settings {
 fn default_issuer() -> String {
     "http://localhost:8080".to_string()
 }
-fn default_grant_types() -> Vec<String> {
-    vec![
-        "authorization_code".to_string(),
-        "client_credentials".to_string(),
-    ]
-}
 fn default_port() -> u16 {
     8080
 }
@@ -77,7 +68,7 @@ fn default_upstream_jwks() -> String {
 fn default_validate_upstream() -> bool {
     false
 }
-fn default_key_path() -> String {
+fn default_signing_key_path() -> String {
     "test/private_key.pem".to_string()
 }
 fn default_token_expiry() -> u64 {
@@ -100,12 +91,11 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             issuer: default_issuer(),
-            grant_types_supported: default_grant_types(),
             port: default_port(),
             upstream_oidc_url: default_upstream_oidc(),
             upstream_jwks_url: default_upstream_jwks(),
             validate_upstream_token: default_validate_upstream(),
-            private_key_path: default_key_path(),
+            signing_key_path: default_signing_key_path(),
             token_expires_in: default_token_expiry(),
             authorize_path: default_authorize_path(),
             token_path: default_token_path(),

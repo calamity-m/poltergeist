@@ -165,14 +165,11 @@ env: []
 
 poltergeistConfig:
   issuer: "http://localhost:8080"
-  grant_types_supported:
-    - "authorization_code"
-    - "client_credentials"
   port: 8080
   upstream_oidc_url: "http://upstream-idp/auth"
   upstream_jwks_url: "http://upstream-idp/.well-known/jwks.json"
   validate_upstream_token: false
-  private_key_path: "/etc/poltergeist/secrets/private_key.pem"
+  signing_key_path: "/etc/poltergeist/secrets/private_key.pem"
   token_expires_in: 3600
 # Static Confidential Clients (Service-to-Service)
 confidential_clients: []

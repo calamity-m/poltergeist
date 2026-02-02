@@ -172,12 +172,11 @@ mod tests {
         // 2. Setup AppState
         let settings = config::Settings {
             issuer: "http://localhost:8080".to_string(),
-            grant_types_supported: vec![],
             port: 8080,
             upstream_oidc_url: "http://upstream".to_string(),
             upstream_jwks_url: format!("{}/jwks.json", mock_server.uri()),
             validate_upstream_token: true,
-            private_key_path: "test/private_key.pem".to_string(),
+            signing_key_path: "test/private_key.pem".to_string(),
             token_expires_in: 3600,
             confidential_clients: vec![],
             public_clients: vec![PublicClient {
@@ -281,12 +280,11 @@ mod tests {
         // 2. Setup AppState
         let settings = config::Settings {
             issuer: "http://localhost:8080".to_string(),
-            grant_types_supported: vec![],
             port: 8080,
             upstream_oidc_url: "http://upstream".to_string(),
             upstream_jwks_url: format!("{}/jwks.json", mock_server.uri()),
             validate_upstream_token: true,
-            private_key_path: "test/private_key.pem".to_string(),
+            signing_key_path: "test/private_key.pem".to_string(),
             token_expires_in: 3600,
             confidential_clients: vec![],
             public_clients: vec![PublicClient {
@@ -367,12 +365,11 @@ mod tests {
 
         let settings = config::Settings {
             issuer: "http://localhost:8080".to_string(),
-            grant_types_supported: vec![],
             port: 8080,
             upstream_oidc_url: "http://upstream-login".to_string(),
             upstream_jwks_url: "".to_string(),
             validate_upstream_token: true,
-            private_key_path: "test/private_key.pem".to_string(),
+            signing_key_path: "test/private_key.pem".to_string(),
             token_expires_in: 3600,
             confidential_clients: vec![],
             public_clients: vec![PublicClient {

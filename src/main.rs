@@ -60,7 +60,7 @@ async fn main() {
         .build();
 
     let private_key_pem =
-        std::fs::read_to_string(&settings.private_key_path).expect("Failed to read private key");
+        std::fs::read_to_string(&settings.signing_key_path).expect("Failed to read private key");
     let key_state = key::KeyState::new(&private_key_pem);
     tracing::info!("Cryptographic keys initialized.");
 
@@ -144,7 +144,10 @@ async fn openid_configuration(State(state): State<Arc<AppState>>) -> Json<OIDCCo
         response_types_supported: vec!["code".to_string()],
         subject_types_supported: vec!["public".to_string()],
         id_token_signing_alg_values_supported: vec!["RS256".to_string()],
-        grant_types_supported: state.settings.grant_types_supported.clone(),
+        grant_types_supported: vec![
+            "authorization_code".to_string(),
+            "client_credentials".to_string(),
+        ],
     };
     Json(config)
 }

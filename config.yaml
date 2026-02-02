@@ -1,12 +1,9 @@
 issuer: "http://localhost:8080"
-grant_types_supported:
-  - "authorization_code"
-  - "client_credentials"
 port: 8080
-upstream_oidc_url: "http://upstream-idp/auth"
-upstream_jwks_url: "http://upstream-idp/.well-known/jwks.json"
+upstream_oidc_url: "http://localhost:8081/login"
+upstream_jwks_url: "http://localhost:8081/.well-known/jwks.json"
 validate_upstream_token: false
-private_key_path: "test/private_key.pem"
+signing_key_path: "test/private_key.pem"
 token_expires_in: 3600
 confidential_clients:
   - client_id: "service-a"
