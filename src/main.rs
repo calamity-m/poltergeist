@@ -71,8 +71,17 @@ async fn main() {
         key_state,
     });
 
-    // build our application with a route
-    let app = Router::new()
+    let app = create_app(shared_state.clone());
+
+    // run our app with hyper
+    let addr = SocketAddr::from(([0, 0, 0, 0], shared_state.settings.port));
+    tracing::info!("Listening on http://{}", addr);
+    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+    axum::serve(listener, app).await.unwrap();
+}
+
+fn create_app(state: Arc<AppState>) -> Router {
+    Router::new()
         // `GET /` goes to `root`
         .route("/", get(root))
         .route(
@@ -80,12 +89,12 @@ async fn main() {
             get(openid_configuration),
         )
         .route(
-            &shared_state.settings.authorize_path,
+            &state.settings.authorize_path,
             get(authorize::authorize_get).post(authorize::authorize_post),
         )
-        .route(&shared_state.settings.token_path, post(token::token))
-        .route(&shared_state.settings.userinfo_path, get(userinfo::userinfo))
-        .route(&shared_state.settings.jwks_path, get(jwks::jwks))
+        .route(&state.settings.token_path, post(token::token))
+        .route(&state.settings.userinfo_path, get(userinfo::userinfo))
+        .route(&state.settings.jwks_path, get(jwks::jwks))
         .layer(
             tower_http::trace::TraceLayer::new_for_http()
                 .on_failure(DefaultOnFailure::new().level(Level::ERROR))
@@ -98,13 +107,7 @@ async fn main() {
         )
         .layer(middleware::AuditLayer)
         .layer(middleware::TraceParentLayer)
-        .with_state(shared_state.clone());
-
-    // run our app with hyper
-    let addr = SocketAddr::from(([0, 0, 0, 0], shared_state.settings.port));
-    tracing::info!("Listening on http://{}", addr);
-    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+        .with_state(state)
 }
 
 /// Basic health check endpoint.
@@ -144,4 +147,81 @@ async fn openid_configuration(State(state): State<Arc<AppState>>) -> Json<OIDCCo
         grant_types_supported: state.settings.grant_types_supported.clone(),
     };
     Json(config)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::body::Body;
+    use axum::http::{Request, StatusCode};
+    use tower::ServiceExt;
+
+    #[tokio::test]
+    async fn test_configurable_endpoints() {
+        let private_key_pem = std::fs::read_to_string("test/private_key.pem").unwrap();
+        let key_state = key::KeyState::new(&private_key_pem);
+
+        let settings = config::Settings {
+            authorize_path: "/custom-authorize".to_string(),
+            token_path: "/custom-token".to_string(),
+            ..config::Settings::default()
+        };
+
+        let state = Arc::new(AppState {
+            settings,
+            jwks_cache: Cache::builder().build(),
+            auth_code_cache: Cache::builder().build(),
+            key_state,
+        });
+
+        let app = create_app(state);
+
+        // Test custom authorize endpoint
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/custom-authorize?client_id=test&response_type=code&redirect_uri=http://cb")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        
+        // Should not be 404 (likely 302 redirect to upstream or 400 if validation fails, 
+        // but since we don't have upstream header, it will likely be 302 to upstream or 400 invalid client)
+        assert_ne!(response.status(), StatusCode::NOT_FOUND);
+
+        // Test that default endpoint is NOT found
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/authorize")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        
+        // Test custom token endpoint
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/custom-token")
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"grant_type":"client_credentials","client_id":"foo","client_secret":"bar"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_ne!(response.status(), StatusCode::NOT_FOUND);
+    }
 }
