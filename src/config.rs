@@ -34,6 +34,18 @@ pub struct Settings {
     /// Default token expiration time in seconds.
     #[serde(default = "default_token_expiry")]
     pub token_expires_in: u64,
+    /// Path for the authorization endpoint.
+    #[serde(default = "default_authorize_path")]
+    pub authorize_path: String,
+    /// Path for the token endpoint.
+    #[serde(default = "default_token_path")]
+    pub token_path: String,
+    /// Path for the JWKS endpoint.
+    #[serde(default = "default_jwks_path")]
+    pub jwks_path: String,
+    /// Path for the UserInfo endpoint.
+    #[serde(default = "default_userinfo_path")]
+    pub userinfo_path: String,
     /// Static clients for M2M (client_credentials) flow.
     #[serde(default)]
     pub private_clients: Vec<PrivateClient>,
@@ -71,6 +83,18 @@ fn default_key_path() -> String {
 fn default_token_expiry() -> u64 {
     3600
 }
+fn default_authorize_path() -> String {
+    "/authorize".to_string()
+}
+fn default_token_path() -> String {
+    "/token".to_string()
+}
+fn default_jwks_path() -> String {
+    "/jwks".to_string()
+}
+fn default_userinfo_path() -> String {
+    "/userinfo".to_string()
+}
 
 impl Default for Settings {
     fn default() -> Self {
@@ -83,6 +107,10 @@ impl Default for Settings {
             validate_upstream_token: default_validate_upstream(),
             private_key_path: default_key_path(),
             token_expires_in: default_token_expiry(),
+            authorize_path: default_authorize_path(),
+            token_path: default_token_path(),
+            jwks_path: default_jwks_path(),
+            userinfo_path: default_userinfo_path(),
             private_clients: Vec::new(),
             public_clients: Vec::new(),
             telemetry: TelemetryConfig::default(),

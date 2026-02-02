@@ -80,12 +80,12 @@ async fn main() {
             get(openid_configuration),
         )
         .route(
-            "/authorize",
+            &shared_state.settings.authorize_path,
             get(authorize::authorize_get).post(authorize::authorize_post),
         )
-        .route("/token", post(token::token))
-        .route("/userinfo", get(userinfo::userinfo))
-        .route("/jwks", get(jwks::jwks))
+        .route(&shared_state.settings.token_path, post(token::token))
+        .route(&shared_state.settings.userinfo_path, get(userinfo::userinfo))
+        .route(&shared_state.settings.jwks_path, get(jwks::jwks))
         .layer(
             tower_http::trace::TraceLayer::new_for_http()
                 .on_failure(DefaultOnFailure::new().level(Level::ERROR))
@@ -134,10 +134,10 @@ async fn openid_configuration(State(state): State<Arc<AppState>>) -> Json<OIDCCo
     tracing::debug!("Serving OIDC discovery configuration");
     let config = OIDCConfig {
         issuer: state.settings.issuer.clone(),
-        authorization_endpoint: format!("{}/authorize", state.settings.issuer),
-        token_endpoint: format!("{}/token", state.settings.issuer),
-        userinfo_endpoint: format!("{}/userinfo", state.settings.issuer),
-        jwks_uri: format!("{}/jwks", state.settings.issuer),
+        authorization_endpoint: format!("{}{}", state.settings.issuer, state.settings.authorize_path),
+        token_endpoint: format!("{}{}", state.settings.issuer, state.settings.token_path),
+        userinfo_endpoint: format!("{}{}", state.settings.issuer, state.settings.userinfo_path),
+        jwks_uri: format!("{}{}", state.settings.issuer, state.settings.jwks_path),
         response_types_supported: vec!["code".to_string()],
         subject_types_supported: vec!["public".to_string()],
         id_token_signing_alg_values_supported: vec!["RS256".to_string()],
