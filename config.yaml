@@ -8,10 +8,10 @@ upstream_jwks_url: "http://upstream-idp/.well-known/jwks.json"
 validate_upstream_token: false
 private_key_path: "test/private_key.pem"
 token_expires_in: 3600
-private_clients:
-  - client_id: "backend-service"
-    client_secret: "service-secret"
-    audience: "internal-api"
+confidential_clients:
+  - client_id: "service-a"
+    client_secret: "secret-a"
+    audience: "api-service"
 public_clients:
   - client_id: "frontend-app"
     audience: "user-profile-api"

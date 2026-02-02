@@ -174,10 +174,11 @@ poltergeistConfig:
   validate_upstream_token: false
   private_key_path: "/etc/poltergeist/secrets/private_key.pem"
   token_expires_in: 3600
-  private_clients:
-    - client_id: "backend-service"
-      client_secret: "service-secret"
-      audience: "internal-api"
+# Static Confidential Clients (Service-to-Service)
+confidential_clients: []
+#  - client_id: "service-a"
+#    client_secret: "super-secret"
+#    audience: "api-service"
   public_clients:
     - client_id: "frontend-app"
       audience: "user-profile-api"

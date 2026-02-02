@@ -89,10 +89,10 @@ async fn handle_authorization_code(
     let aud = if let Some(c) = public_client {
         c.audience.clone()
     } else {
-        // Try private clients
-        let private_client = state
+        // Try confidential clients
+        let confidential_client = state
             .settings
-            .private_clients
+            .confidential_clients
             .iter()
             .find(|c| c.client_id == payload.client_id)
             .ok_or_else(|| {
@@ -102,8 +102,8 @@ async fn handle_authorization_code(
                 )
             })?;
 
-        let effective_secret = private_client.get_secret();
-        // For private clients, we MUST have a secret and it MUST match
+        let effective_secret = confidential_client.get_secret();
+        // For confidential clients, we MUST have a secret and it MUST match
         let secret = payload.client_secret.as_deref().ok_or_else(|| {
             (
                 StatusCode::UNAUTHORIZED,
@@ -118,7 +118,7 @@ async fn handle_authorization_code(
             ));
         }
 
-        private_client.audience.clone()
+        confidential_client.audience.clone()
     };
 
     // Try to get identity from cache via code
@@ -194,7 +194,7 @@ async fn handle_client_credentials(
     // Find the client in the static configuration
     let client = state
         .settings
-        .private_clients
+        .confidential_clients
         .iter()
         .find(|c| {
             c.client_id == payload.client_id
@@ -230,7 +230,7 @@ async fn handle_client_credentials(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{PrivateClient, PublicClient, Settings};
+    use crate::config::{ConfidentialClient, PublicClient, Settings};
     use crate::jwt::downstream::DownstreamClaims;
     use crate::key::KeyState;
     use moka::future::Cache;
@@ -250,7 +250,7 @@ mod tests {
             validate_upstream_token: false,
             private_key_path: "test/private_key.pem".to_string(),
             token_expires_in: 3600,
-            private_clients: vec![PrivateClient {
+            confidential_clients: vec![ConfidentialClient {
                 client_id: "test-client".to_string(),
                 client_secret: Some("test-secret".to_string()),
                 client_secret_env: None,
@@ -295,7 +295,7 @@ mod tests {
             validate_upstream_token: false,
             private_key_path: "test/private_key.pem".to_string(),
             token_expires_in: 3600,
-            private_clients: vec![PrivateClient {
+            confidential_clients: vec![ConfidentialClient {
                 client_id: "test-client".to_string(),
                 client_secret: Some("test-secret".to_string()),
                 client_secret_env: None,
@@ -342,7 +342,7 @@ mod tests {
             validate_upstream_token: false,
             private_key_path: "test/private_key.pem".to_string(),
             token_expires_in: 3600,
-            private_clients: vec![PrivateClient {
+            confidential_clients: vec![ConfidentialClient {
                 client_id: "test-client".to_string(),
                 client_secret: Some("test-secret".to_string()),
                 client_secret_env: None,
@@ -391,7 +391,7 @@ mod tests {
             validate_upstream_token: false,
             private_key_path: "test/private_key.pem".to_string(),
             token_expires_in: 3600,
-            private_clients: vec![],
+            confidential_clients: vec![],
             public_clients: vec![PublicClient {
                 client_id: "web-app".to_string(),
                 audience: "custom-app-aud".to_string(),
@@ -454,7 +454,7 @@ mod tests {
             validate_upstream_token: false,
             private_key_path: "test/private_key.pem".to_string(),
             token_expires_in: 3600,
-            private_clients: vec![PrivateClient {
+            confidential_clients: vec![ConfidentialClient {
                 client_id: "confidential-client".to_string(),
                 client_secret: Some("top-secret".to_string()),
                 client_secret_env: None,
@@ -522,7 +522,7 @@ mod tests {
             validate_upstream_token: false,
             private_key_path: "test/private_key.pem".to_string(),
             token_expires_in: 3600,
-            private_clients: vec![PrivateClient {
+            confidential_clients: vec![ConfidentialClient {
                 client_id: "env-client".to_string(),
                 client_secret: None,
                 client_secret_env: Some(env_var_name.to_string()),

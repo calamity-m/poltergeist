@@ -57,7 +57,7 @@ sequenceDiagram
     Poltergeist-->>Client: 200 OK (Tokens)
 ```
 
-### The "Shim" Flow - Backend with Private Client
+### The "Shim" Flow - Backend with Confidential Client
 
 ```mermaid
 sequenceDiagram
@@ -66,7 +66,7 @@ sequenceDiagram
     participant Ingress as Ingress Gateway
     participant Upstream as Upstream IdP
     participant Poltergeist as Poltergeist (Shim)
-    participant Backend as Backend App (Private Client)
+    participant Backend as Backend App (Confidential Client)
 
     Note over User, Upstream: 0. Initial Ingress Auth (Standard OIDC)
     User->>Ingress: Access Application URL

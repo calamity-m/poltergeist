@@ -48,7 +48,7 @@ pub struct Settings {
     pub userinfo_path: String,
     /// Static clients for M2M (client_credentials) flow.
     #[serde(default)]
-    pub private_clients: Vec<PrivateClient>,
+    pub confidential_clients: Vec<ConfidentialClient>,
     /// Static clients for Browser to service (authorization_code) flow.
     #[serde(default)]
     pub public_clients: Vec<PublicClient>,
@@ -111,7 +111,7 @@ impl Default for Settings {
             token_path: default_token_path(),
             jwks_path: default_jwks_path(),
             userinfo_path: default_userinfo_path(),
-            private_clients: Vec::new(),
+            confidential_clients: Vec::new(),
             public_clients: Vec::new(),
             telemetry: TelemetryConfig::default(),
         }
@@ -120,7 +120,7 @@ impl Default for Settings {
 
 /// Represents a static OAuth2 client for service-to-service communication.
 #[derive(Clone, Deserialize)]
-pub struct PrivateClient {
+pub struct ConfidentialClient {
     /// The client's unique identifier.
     pub client_id: String,
     /// The client's secret.
@@ -132,17 +132,17 @@ pub struct PrivateClient {
     pub audience: String,
 }
 
-impl PrivateClient {
+impl ConfidentialClient {
     /// Retrieves the secret for this client.
     ///
     /// Checks `client_secret` first, then looks up the environment variable
     /// specified in `client_secret_env`.
     pub fn get_secret(&self) -> Option<String> {
-        if let Some(ref s) = self.client_secret {
-            return Some(s.clone());
-        }
         if let Some(ref env_var) = self.client_secret_env {
             return std::env::var(env_var).ok();
+        }
+        if let Some(ref s) = self.client_secret {
+            return Some(s.clone());
         }
         None
     }

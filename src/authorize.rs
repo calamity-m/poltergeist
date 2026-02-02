@@ -179,7 +179,7 @@ mod tests {
             validate_upstream_token: true,
             private_key_path: "test/private_key.pem".to_string(),
             token_expires_in: 3600,
-            private_clients: vec![],
+            confidential_clients: vec![],
             public_clients: vec![PublicClient {
                 client_id: "client".to_string(),
                 audience: "aud".to_string(),
@@ -288,7 +288,7 @@ mod tests {
             validate_upstream_token: true,
             private_key_path: "test/private_key.pem".to_string(),
             token_expires_in: 3600,
-            private_clients: vec![],
+            confidential_clients: vec![],
             public_clients: vec![PublicClient {
                 client_id: "client".to_string(),
                 audience: "aud".to_string(),
@@ -374,7 +374,7 @@ mod tests {
             validate_upstream_token: true,
             private_key_path: "test/private_key.pem".to_string(),
             token_expires_in: 3600,
-            private_clients: vec![],
+            confidential_clients: vec![],
             public_clients: vec![PublicClient {
                 client_id: "client".to_string(),
                 audience: "aud".to_string(),

@@ -6,7 +6,6 @@
 
 use std::{
     collections::HashMap,
-    sync::Arc,
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -16,7 +15,7 @@ use tracing::debug;
 
 use crate::{
     AppState,
-    config::PrivateClient,
+    config::ConfidentialClient,
 };
 
 /// JWT claims for the tokens issued by Poltergeist,
@@ -101,9 +100,10 @@ pub fn create_downstream_claims(
 /// *   **Subject (`sub`):** Forced to be the `client_id` (since there is no human user).
 /// *   **Nonce:** Always `None` (not used in M2M).
 /// *   **Other Claims:** Always empty (no upstream identity to merge).
+/// Mints claims for a machine user (client_credentials).
 pub async fn create_downstream_claims_for_client_credentials(
-    state: &Arc<AppState>,
-    client: &PrivateClient,
+    state: &AppState,
+    client: &ConfidentialClient,
 ) -> DownstreamClaims {
     create_downstream_claims(
         state.settings.issuer.clone(),
