@@ -5,6 +5,11 @@ upstream_jwks_url: "http://upstream-idp/.well-known/jwks.json"
 validate_upstream_token: false
 signing_key_path: "/etc/poltergeist/private_key.pem"
 token_expires_in: 3600
+# Optional: Custom endpoint paths
+authorize_path: "/authorize"
+token_path: "/token"
+jwks_path: "/jwks"
+userinfo_path: "/userinfo"
 confidential_clients:
   - client_id: "example-m2m"
     client_secret: "example-secret"
