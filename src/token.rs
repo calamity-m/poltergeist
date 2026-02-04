@@ -7,8 +7,9 @@ use crate::jwt::downstream;
 use axum::{Form, Json};
 use axum::extract::{FromRequest, Request, State};
 use axum::http::{HeaderMap, StatusCode};
-use axum::http::header::CONTENT_TYPE;
+use axum::http::header::{AUTHORIZATION, CONTENT_TYPE};
 use axum::response::{IntoResponse, Response};
+use base64::{Engine as _, engine::general_purpose::STANDARD};
 use jsonwebtoken::{Header, encode};
 use serde::{Deserialize, Serialize};
 use serde::de::DeserializeOwned;
@@ -25,7 +26,7 @@ pub struct TokenRequest {
     /// PKCE code verifier (currently ignored but part of the spec).
     code_verifier: Option<String>,
     /// Client identifier.
-    pub client_id: String,
+    pub client_id: Option<String>,
     /// Client secret (for client_credentials flow).
     client_secret: Option<String>,
 }
@@ -85,7 +86,7 @@ where
 /// 4.  Mints a new downstream JWT (Access Token & ID Token).
 /// 5.  Returns the tokens in a standard OAuth 2.0 JSON response.
 #[tracing::instrument(
-    skip(state, _headers, payload),
+    skip(state, headers, payload),
     fields(
         grant_type = payload.grant_type,
         client_id = payload.client_id,
@@ -94,10 +95,39 @@ where
 )]
 pub async fn token(
     State(state): State<Arc<AppState>>,
-    _headers: HeaderMap,
-    JsonOrForm(payload): JsonOrForm<TokenRequest>,
+    headers: HeaderMap,
+    JsonOrForm(mut payload): JsonOrForm<TokenRequest>,
 ) -> Result<Json<TokenResponse>, (StatusCode, String)> {
     tracing::info!("Received token request: grant_type={}", payload.grant_type);
+
+    // Handle Basic Authentication
+    if let Some(auth_value) = headers.get(AUTHORIZATION) {
+        if let Ok(auth_str) = auth_value.to_str() {
+            if auth_str.starts_with("Basic ") {
+                let credentials = auth_str.trim_start_matches("Basic ");
+                if let Ok(decoded) = STANDARD.decode(credentials) {
+                    if let Ok(cred_str) = String::from_utf8(decoded) {
+                        if let Some((id, secret)) = cred_str.split_once(':') {
+                            // If client_id is missing in body, use from header
+                            if payload.client_id.is_none() {
+                                payload.client_id = Some(id.to_string());
+                            }
+                            // If client_secret is missing in body, use from header
+                            if payload.client_secret.is_none() {
+                                payload.client_secret = Some(secret.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Ensure client_id is present
+    if payload.client_id.is_none() {
+        return Err((StatusCode::BAD_REQUEST, "missing client_id".to_string()));
+    }
+
     match payload.grant_type.as_str() {
         "client_credentials" => handle_client_credentials(state, payload).await,
         "authorization_code" => handle_authorization_code(state, payload).await,
@@ -115,12 +145,14 @@ async fn handle_authorization_code(
     state: Arc<AppState>,
     payload: TokenRequest,
 ) -> Result<Json<TokenResponse>, (StatusCode, String)> {
+    let client_id = payload.client_id.as_ref().unwrap();
+
     // Try to find as public client first
     let public_client = state
         .settings
         .public_clients
         .iter()
-        .find(|c| c.client_id == payload.client_id);
+        .find(|c| c.client_id == *client_id);
 
     let aud = if let Some(c) = public_client {
         c.audience.clone()
@@ -130,11 +162,11 @@ async fn handle_authorization_code(
             .settings
             .confidential_clients
             .iter()
-            .find(|c| c.client_id == payload.client_id)
+            .find(|c| c.client_id == *client_id)
             .ok_or_else(|| {
                 (
                     StatusCode::BAD_REQUEST,
-                    format!("{} is not a valid client_id", payload.client_id),
+                    format!("{} is not a valid client_id", client_id),
                 )
             })?;
 
@@ -174,7 +206,7 @@ async fn handle_authorization_code(
 
     tracing::info!(
         "Exchanging code (performative) for client: {}, subject: {}",
-        payload.client_id,
+        client_id,
         context.claims.sub
     );
 
@@ -183,7 +215,7 @@ async fn handle_authorization_code(
     let claims = downstream::create_downstream_claims(
         state.settings.issuer.clone(),
         state.settings.token_expires_in,
-        payload.client_id,
+        client_id.clone(),
         aud,
         context.claims.sub,
         context.nonce,
@@ -215,6 +247,7 @@ async fn handle_client_credentials(
     state: Arc<AppState>,
     payload: TokenRequest,
 ) -> Result<Json<TokenResponse>, (StatusCode, String)> {
+    let client_id = payload.client_id.as_ref().unwrap();
     let client_secret = payload.client_secret.as_ref().ok_or_else(|| {
         tracing::warn!("Missing client_secret for client_credentials grant");
         (
@@ -225,7 +258,7 @@ async fn handle_client_credentials(
 
     tracing::info!(
         "Authenticating client_credentials for: {}",
-        payload.client_id
+        client_id
     );
 
     // Find the client in the static configuration
@@ -234,11 +267,11 @@ async fn handle_client_credentials(
         .confidential_clients
         .iter()
         .find(|c| {
-            c.client_id == payload.client_id
+            c.client_id == *client_id
                 && c.get_secret().as_deref() == Some(client_secret.as_str())
         })
         .ok_or_else(|| {
-            tracing::warn!("Invalid client credentials for: {}", payload.client_id);
+            tracing::warn!("Invalid client credentials for: {}", client_id);
             (
                 StatusCode::UNAUTHORIZED,
                 "invalid client credentials".to_string(),
@@ -308,7 +341,7 @@ mod tests {
             grant_type: "client_credentials".to_string(),
             code: None,
             code_verifier: None,
-            client_id: "test-client".to_string(),
+            client_id: Some("test-client".to_string()),
             client_secret: Some("test-secret".to_string()),
         };
 
@@ -352,7 +385,7 @@ mod tests {
             grant_type: "client_credentials".to_string(),
             code: None,
             code_verifier: None,
-            client_id: "test-client".to_string(),
+            client_id: Some("test-client".to_string()),
             client_secret: Some("wrong-secret".to_string()),
         };
 
@@ -398,7 +431,7 @@ mod tests {
             grant_type: "client_credentials".to_string(),
             code: None,
             code_verifier: None,
-            client_id: "test-client".to_string(),
+            client_id: Some("test-client".to_string()),
             client_secret: Some("test-secret".to_string()),
         };
 
@@ -459,7 +492,7 @@ mod tests {
             grant_type: "authorization_code".to_string(),
             code: Some(code),
             code_verifier: None,
-            client_id: "web-app".to_string(),
+            client_id: Some("web-app".to_string()),
             client_secret: None,
         };
 
@@ -526,7 +559,7 @@ mod tests {
             grant_type: "authorization_code".to_string(),
             code: Some(code),
             code_verifier: None,
-            client_id: "confidential-client".to_string(),
+            client_id: Some("confidential-client".to_string()),
             client_secret: Some("top-secret".to_string()),
         };
 
@@ -578,7 +611,7 @@ mod tests {
             grant_type: "client_credentials".to_string(),
             code: None,
             code_verifier: None,
-            client_id: "env-client".to_string(),
+            client_id: Some("env-client".to_string()),
             client_secret: Some("env-secret-value".to_string()),
         };
 
@@ -603,7 +636,7 @@ mod tests {
             .unwrap();
         
         let JsonOrForm(payload) = JsonOrForm::<TokenRequest>::from_request(req, &()).await.unwrap();
-        assert_eq!(payload.client_id, "test");
+        assert_eq!(payload.client_id, Some("test".to_string()));
         assert_eq!(payload.grant_type, "client_credentials");
 
         // Test Form
@@ -614,7 +647,59 @@ mod tests {
             .unwrap();
         
         let JsonOrForm(payload) = JsonOrForm::<TokenRequest>::from_request(req, &()).await.unwrap();
-        assert_eq!(payload.client_id, "test");
+        assert_eq!(payload.client_id, Some("test".to_string()));
         assert_eq!(payload.grant_type, "client_credentials");
+    }
+
+    #[tokio::test]
+    async fn test_token_basic_auth() {
+        let private_key_pem = std::fs::read_to_string("test/private_key.pem").unwrap();
+        let key_state = KeyState::new(&private_key_pem);
+
+        let settings = Settings {
+            issuer: "http://localhost:8080".to_string(),
+            port: 8080,
+            upstream_oidc_url: "http://upstream".to_string(),
+            upstream_jwks_url: "http://upstream/jwks".to_string(),
+            validate_upstream_token: false,
+            signing_key_path: "test/private_key.pem".to_string(),
+            token_expires_in: 3600,
+            confidential_clients: vec![ConfidentialClient {
+                client_id: "basic-client".to_string(),
+                client_secret: Some("basic-secret".to_string()),
+                client_secret_env: None,
+                audience: "aud".to_string(),
+            }],
+            public_clients: vec![],
+            telemetry: Default::default(),
+            ..Settings::default()
+        };
+
+        let state = Arc::new(AppState {
+            settings,
+            jwks_cache: Cache::builder().build(),
+            auth_code_cache: Cache::builder().build(),
+            key_state,
+        });
+
+        // Basic Auth encoded "basic-client:basic-secret"
+        let credentials = base64::engine::general_purpose::STANDARD.encode("basic-client:basic-secret");
+        
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            AUTHORIZATION,
+            format!("Basic {}", credentials).parse().unwrap(),
+        );
+
+        let payload = TokenRequest {
+            grant_type: "client_credentials".to_string(),
+            code: None,
+            code_verifier: None,
+            client_id: None, // Missing in body, should take from header
+            client_secret: None, // Missing in body, should take from header
+        };
+
+        let Json(response) = token(State(state), headers, JsonOrForm(payload)).await.unwrap();
+        assert!(!response.access_token.is_empty());
     }
 }
