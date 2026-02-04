@@ -8,12 +8,9 @@
 
 use axum::{
     Router,
-    extract::State,
-    response::Json,
     routing::{get, post},
 };
 use moka::future::Cache;
-use serde::Serialize;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -29,6 +26,7 @@ mod middleware;
 mod telemetry;
 mod token;
 mod userinfo;
+mod well_known;
 
 /// Global application state shared across handlers.
 pub struct AppState {
@@ -85,8 +83,8 @@ fn create_app(state: Arc<AppState>) -> Router {
         // `GET /` goes to `root`
         .route("/", get(root))
         .route(
-            "/.well-known/openid-configuration",
-            get(openid_configuration),
+            &state.settings.well_known_path,
+            get(well_known::openid_configuration),
         )
         .route(
             &state.settings.authorize_path,
@@ -116,42 +114,6 @@ async fn root() -> &'static str {
     "Hello, World!"
 }
 
-/// Structure representing the OIDC Discovery document.
-#[derive(Serialize)]
-struct OIDCConfig {
-    issuer: String,
-    authorization_endpoint: String,
-    token_endpoint: String,
-    userinfo_endpoint: String,
-    jwks_uri: String,
-    response_types_supported: Vec<String>,
-    subject_types_supported: Vec<String>,
-    id_token_signing_alg_values_supported: Vec<String>,
-    grant_types_supported: Vec<String>,
-}
-
-/// Handler for the OIDC Discovery endpoint (`/.well-known/openid-configuration`).
-/// Returns the configuration metadata for this OIDC provider.
-#[tracing::instrument(skip(state))]
-async fn openid_configuration(State(state): State<Arc<AppState>>) -> Json<OIDCConfig> {
-    tracing::debug!("Serving OIDC discovery configuration");
-    let config = OIDCConfig {
-        issuer: state.settings.issuer.clone(),
-        authorization_endpoint: format!("{}{}", state.settings.issuer, state.settings.authorize_path),
-        token_endpoint: format!("{}{}", state.settings.issuer, state.settings.token_path),
-        userinfo_endpoint: format!("{}{}", state.settings.issuer, state.settings.userinfo_path),
-        jwks_uri: format!("{}{}", state.settings.issuer, state.settings.jwks_path),
-        response_types_supported: vec!["code".to_string()],
-        subject_types_supported: vec!["public".to_string()],
-        id_token_signing_alg_values_supported: vec!["RS256".to_string()],
-        grant_types_supported: vec![
-            "authorization_code".to_string(),
-            "client_credentials".to_string(),
-        ],
-    };
-    Json(config)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -167,6 +129,7 @@ mod tests {
         let settings = config::Settings {
             authorize_path: "/custom-authorize".to_string(),
             token_path: "/custom-token".to_string(),
+            well_known_path: "/custom-discovery".to_string(),
             ..config::Settings::default()
         };
 
@@ -226,5 +189,35 @@ mod tests {
             .unwrap();
 
         assert_ne!(response.status(), StatusCode::NOT_FOUND);
+
+        // Test custom well-known endpoint
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/custom-discovery")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        // Test that default well-known endpoint is NOT found
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/.well-known/openid-configuration")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
     }
 }

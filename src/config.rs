@@ -43,6 +43,9 @@ pub struct Settings {
     /// Path for the UserInfo endpoint.
     #[serde(default = "default_userinfo_path")]
     pub userinfo_path: String,
+    /// Path for the OIDC Discovery endpoint.
+    #[serde(default = "default_well_known_path")]
+    pub well_known_path: String,
     /// Static clients for M2M (client_credentials) flow.
     #[serde(default)]
     pub confidential_clients: Vec<ConfidentialClient>,
@@ -86,6 +89,9 @@ fn default_jwks_path() -> String {
 fn default_userinfo_path() -> String {
     "/userinfo".to_string()
 }
+fn default_well_known_path() -> String {
+    "/.well-known/openid-configuration".to_string()
+}
 
 impl Default for Settings {
     fn default() -> Self {
@@ -101,6 +107,7 @@ impl Default for Settings {
             token_path: default_token_path(),
             jwks_path: default_jwks_path(),
             userinfo_path: default_userinfo_path(),
+            well_known_path: default_well_known_path(),
             confidential_clients: Vec::new(),
             public_clients: Vec::new(),
             telemetry: TelemetryConfig::default(),
