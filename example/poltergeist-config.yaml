@@ -29,8 +29,12 @@ token_expires_in: 3600
 # These allow you to change the default OIDC paths.
 # For example, setting authorize_path to "/login" would change the endpoint from /authorize to /login.
 authorize_path: "/authorize"
+# Paths for the token endpoint.
+# The FIRST path in this list is used as the 'token_endpoint' in OIDC discovery.
+# The remaining paths are also registered and functional, but remain "hidden" from discovery.
 token_paths:
   - "/token"
+  - "/api/v1/token"
 jwks_path: "/jwks"
 userinfo_path: "/userinfo"
 
