@@ -4,11 +4,14 @@
 
 use crate::AppState;
 use crate::jwt::downstream;
-use axum::Json;
-use axum::extract::State;
+use axum::{Form, Json};
+use axum::extract::{FromRequest, Request, State};
 use axum::http::{HeaderMap, StatusCode};
+use axum::http::header::CONTENT_TYPE;
+use axum::response::{IntoResponse, Response};
 use jsonwebtoken::{Header, encode};
 use serde::{Deserialize, Serialize};
+use serde::de::DeserializeOwned;
 use std::sync::Arc;
 
 /// Parameters for the token exchange request.
@@ -38,6 +41,39 @@ pub struct TokenResponse {
     expires_in: u64,
 }
 
+/// Helper extractor for handling both JSON and Form requests.
+pub struct JsonOrForm<T>(pub T);
+
+impl<S, T> FromRequest<S> for JsonOrForm<T>
+where
+    S: Send + Sync,
+    T: DeserializeOwned + Send + 'static,
+    Json<T>: FromRequest<S, Rejection = axum::extract::rejection::JsonRejection>,
+    Form<T>: FromRequest<S, Rejection = axum::extract::rejection::FormRejection>,
+{
+    type Rejection = Response;
+
+    async fn from_request(req: Request, state: &S) -> Result<Self, Self::Rejection> {
+        let content_type = req
+            .headers()
+            .get(CONTENT_TYPE)
+            .and_then(|value| value.to_str().ok())
+            .unwrap_or("");
+
+        if content_type.starts_with("application/x-www-form-urlencoded") {
+            let Form(payload) = Form::<T>::from_request(req, state)
+                .await
+                .map_err(|e| e.into_response())?;
+            Ok(JsonOrForm(payload))
+        } else {
+            let Json(payload) = Json::<T>::from_request(req, state)
+                .await
+                .map_err(|e| e.into_response())?;
+            Ok(JsonOrForm(payload))
+        }
+    }
+}
+
 /// Handler for the `/token` endpoint.
 ///
 /// 1.  Validates the `grant_type` (supports `authorization_code` and `client_credentials`).
@@ -59,7 +95,7 @@ pub struct TokenResponse {
 pub async fn token(
     State(state): State<Arc<AppState>>,
     _headers: HeaderMap,
-    Json(payload): Json<TokenRequest>,
+    JsonOrForm(payload): JsonOrForm<TokenRequest>,
 ) -> Result<Json<TokenResponse>, (StatusCode, String)> {
     tracing::info!("Received token request: grant_type={}", payload.grant_type);
     match payload.grant_type.as_str() {
@@ -546,5 +582,35 @@ mod tests {
         assert!(!response.access_token.is_empty());
         
         unsafe { std::env::remove_var(env_var_name) };
+    }
+
+    #[tokio::test]
+    async fn test_json_or_form_extractor() {
+        use axum::extract::{FromRequest, Request};
+        use axum::http::header::CONTENT_TYPE;
+        use axum::body::Body;
+        use axum::http::Method;
+
+        // Test JSON
+        let req = Request::builder()
+            .method(Method::POST)
+            .header(CONTENT_TYPE, "application/json")
+            .body(Body::from(r#"{"client_id":"test","grant_type":"client_credentials"}"#))
+            .unwrap();
+        
+        let JsonOrForm(payload) = JsonOrForm::<TokenRequest>::from_request(req, &()).await.unwrap();
+        assert_eq!(payload.client_id, "test");
+        assert_eq!(payload.grant_type, "client_credentials");
+
+        // Test Form
+        let req = Request::builder()
+            .method(Method::POST)
+            .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
+            .body(Body::from("client_id=test&grant_type=client_credentials"))
+            .unwrap();
+        
+        let JsonOrForm(payload) = JsonOrForm::<TokenRequest>::from_request(req, &()).await.unwrap();
+        assert_eq!(payload.client_id, "test");
+        assert_eq!(payload.grant_type, "client_credentials");
     }
 }
