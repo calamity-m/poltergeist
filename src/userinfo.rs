@@ -91,7 +91,7 @@ mod tests {
         };
 
         let state = Arc::new(AppState {
-            settings,
+            settings: settings.clone(),
             jwks_cache: Cache::builder().build(),
             auth_code_cache: Cache::builder().build(),
             key_state: key_state.clone(),
@@ -99,11 +99,12 @@ mod tests {
 
         // Mint a valid token
         let claims = crate::jwt::downstream::create_downstream_claims(
-            "http://localhost:8080".to_string(),
-            3600,
-            "client-id".to_string(),
+            settings.issuer.clone(),
+            settings.token_expires_in,
+            "client".to_string(),
             "aud".to_string(),
-            "user-123".to_string(),
+            "test-user".to_string(),
+            None,
             None,
             HashMap::new(),
         );
@@ -122,7 +123,7 @@ mod tests {
         let result = userinfo(State(state), headers).await;
         assert!(result.is_ok());
         let claims = result.unwrap().0;
-        assert_eq!(claims.sub, "user-123");
+        assert_eq!(claims.sub, "test-user");
     }
 
     #[tokio::test]

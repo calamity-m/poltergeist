@@ -35,6 +35,9 @@ pub struct DownstreamClaims {
     /// Nonce (optional)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub nonce: Option<String>,
+    /// Scope (optional)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scope: Option<String>,
     /// Everything else lands here
     #[serde(flatten)]
     pub other: HashMap<String, Value>,
@@ -55,6 +58,7 @@ pub fn create_downstream_claims(
     audience: String,
     subject: String,
     nonce: Option<String>,
+    scope: Option<String>,
     other: HashMap<String, Value>,
 ) -> DownstreamClaims {
     let now = SystemTime::now()
@@ -72,6 +76,7 @@ pub fn create_downstream_claims(
     other.remove("exp");
     other.remove("iat");
     other.remove("nonce");
+    other.remove("scope");
 
     let claims = DownstreamClaims {
         sub: subject,
@@ -81,6 +86,7 @@ pub fn create_downstream_claims(
         iat: now,
         exp: now + token_expires_in,
         nonce,
+        scope,
         other,
     };
 
@@ -109,6 +115,7 @@ pub async fn create_downstream_claims_for_client_credentials(
         client.audience.clone(),
         client.client_id.clone(),
         None,
+        None, // TODO: Maybe support configured scopes for M2M?
         HashMap::new(),
     )
 }
@@ -131,6 +138,7 @@ mod tests {
             "real-client".to_string(),
             "real-audience".to_string(),
             "real-subject".to_string(),
+            None,
             None,
             other,
         );

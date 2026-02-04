@@ -187,6 +187,7 @@ async fn handle_authorization_code(
         aud,
         context.claims.sub,
         context.nonce,
+        context.scope,
         context.claims.other,
     );
 
@@ -449,6 +450,7 @@ mod tests {
         let context = crate::jwt::upstream::AuthorizationCodeContext {
             claims: upstream_claims,
             nonce: Some("test-nonce".to_string()),
+            scope: Some("openid profile".to_string()),
         };
         let code = "any-code".to_string();
         state.auth_code_cache.insert(code.clone(), context).await;
@@ -470,6 +472,7 @@ mod tests {
         assert_eq!(token_data.claims.aud, "custom-app-aud");
         assert_eq!(token_data.claims.sub, "test-user");
         assert_eq!(token_data.claims.nonce, Some("test-nonce".to_string()));
+        assert_eq!(token_data.claims.scope, Some("openid profile".to_string()));
     }
 
     #[tokio::test]
@@ -513,6 +516,7 @@ mod tests {
         let context = crate::jwt::upstream::AuthorizationCodeContext {
             claims: upstream_claims,
             nonce: None,
+            scope: None,
         };
         let code = "confidential-code".to_string();
         state.auth_code_cache.insert(code.clone(), context).await;

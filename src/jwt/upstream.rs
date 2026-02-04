@@ -33,6 +33,7 @@ pub struct UpstreamClaims {
 pub struct AuthorizationCodeContext {
     pub claims: UpstreamClaims,
     pub nonce: Option<String>,
+    pub scope: Option<String>,
 }
 
 /// Extracts the identity from the `Authorization` header.
