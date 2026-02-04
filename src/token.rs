@@ -102,25 +102,13 @@ pub async fn token(
 
     // Handle Basic Authentication
     // Only check header if client_secret is NOT provided in the payload.
-    // This enforces precedence and avoids parsing headers unnecessarily or mixing credentials.
     if payload.client_secret.is_none() {
-        if let Some(auth_value) = headers.get(AUTHORIZATION) {
-            if let Ok(auth_str) = auth_value.to_str() {
-                if auth_str.starts_with("Basic ") {
-                    let credentials = auth_str.trim_start_matches("Basic ");
-                    if let Ok(decoded) = STANDARD.decode(credentials) {
-                        if let Ok(cred_str) = String::from_utf8(decoded) {
-                            if let Some((id, secret)) = cred_str.split_once(':') {
-                                // If client_id is missing in body, use from header
-                                if payload.client_id.is_none() {
-                                    payload.client_id = Some(id.to_string());
-                                }
-                                payload.client_secret = Some(secret.to_string());
-                            }
-                        }
-                    }
-                }
+        if let Some((id, secret)) = extract_basic_auth(&headers) {
+            // If client_id is missing in body, use from header
+            if payload.client_id.is_none() {
+                payload.client_id = Some(id);
             }
+            payload.client_secret = Some(secret);
         }
     }
 
@@ -140,6 +128,22 @@ pub async fn token(
             ))
         }
     }
+}
+
+/// Helper to extract (client_id, client_secret) from Basic Auth header.
+fn extract_basic_auth(headers: &HeaderMap) -> Option<(String, String)> {
+    let auth_value = headers.get(AUTHORIZATION)?;
+    let auth_str = auth_value.to_str().ok()?;
+
+    if !auth_str.starts_with("Basic ") {
+        return None;
+    }
+
+    let credentials = auth_str.trim_start_matches("Basic ");
+    let decoded = STANDARD.decode(credentials).ok()?;
+    let cred_str = String::from_utf8(decoded).ok()?;
+    
+    cred_str.split_once(':').map(|(id, secret)| (id.to_string(), secret.to_string()))
 }
 
 async fn handle_authorization_code(
