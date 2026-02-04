@@ -13,10 +13,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tracing::debug;
 
-use crate::{
-    AppState,
-    config::ConfidentialClient,
-};
+use crate::{AppState, config::ConfidentialClient};
 
 /// JWT claims for the tokens issued by Poltergeist,
 /// which will be sent downstream
@@ -100,7 +97,7 @@ pub fn create_downstream_claims(
 /// *   **Subject (`sub`):** Forced to be the `client_id` (since there is no human user).
 /// *   **Nonce:** Always `None` (not used in M2M).
 /// *   **Other Claims:** Always empty (no upstream identity to merge).
-/// Mints claims for a machine user (client_credentials).
+///     Mints claims for a machine user (client_credentials).
 pub async fn create_downstream_claims_for_client_credentials(
     state: &AppState,
     client: &ConfidentialClient,
@@ -140,11 +137,11 @@ mod tests {
 
         // Serialize to JSON
         let serialized = serde_json::to_value(&claims).unwrap();
-        
-        // In serde_json, if we have duplicate keys during serialization from flatten, 
+
+        // In serde_json, if we have duplicate keys during serialization from flatten,
         // the behavior can be tricky. But usually, the struct fields are serialized first.
         // Let's see what actually happens.
-        
+
         assert_eq!(serialized["sub"], json!("real-subject"));
         assert_eq!(serialized["custom-claim"], json!("custom-value"));
 
@@ -152,9 +149,12 @@ mod tests {
         // When deserializing, serde(flatten) with a map will put ALL unknown fields into the map.
         // Known fields (sub, aud, etc.) will be populated into their respective struct fields.
         let deserialized: DownstreamClaims = serde_json::from_value(serialized).unwrap();
-        
+
         assert_eq!(deserialized.sub, "real-subject");
-        assert_eq!(deserialized.other.get("custom-claim").unwrap(), &json!("custom-value"));
+        assert_eq!(
+            deserialized.other.get("custom-claim").unwrap(),
+            &json!("custom-value")
+        );
         // The 'sub' should NOT be in the other map after round-trip if it was a known field,
         // UNLESS it was duplicated in the JSON.
         assert!(!deserialized.other.contains_key("sub"));

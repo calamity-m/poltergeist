@@ -51,7 +51,7 @@ pub async fn openid_configuration(State(state): State<Arc<AppState>>) -> Json<OI
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{self, Settings};
+    use crate::config::Settings;
     use crate::key::KeyState;
     use moka::future::Cache;
 
