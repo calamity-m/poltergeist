@@ -99,8 +99,11 @@ fn create_app(state: Arc<AppState>) -> Router {
         router = router.route(path, get(jwks::jwks));
     }
 
+    for path in &state.settings.userinfo_paths {
+        router = router.route(path, get(userinfo::userinfo));
+    }
+
     router
-        .route(&state.settings.userinfo_path, get(userinfo::userinfo))
         .layer(
             tower_http::trace::TraceLayer::new_for_http()
                 .on_failure(DefaultOnFailure::new().level(Level::ERROR))
@@ -138,6 +141,7 @@ mod tests {
             authorize_path: "/custom-authorize".to_string(),
             token_paths: vec!["/custom-token".to_string(), "/another-token".to_string()],
             jwks_paths: vec!["/custom-jwks".to_string(), "/hidden-jwks".to_string()],
+            userinfo_paths: vec!["/custom-userinfo".to_string(), "/hidden-userinfo".to_string()],
             well_known_path: "/custom-discovery".to_string(),
             ..config::Settings::default()
         };
@@ -259,6 +263,37 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::OK);
+
+        // Test custom UserInfo endpoint
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/custom-userinfo")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        // Not found because we don't provide a token, but it should be 401/400 not 404
+        assert_ne!(response.status(), StatusCode::NOT_FOUND);
+
+        // Test another custom UserInfo endpoint
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/hidden-userinfo")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_ne!(response.status(), StatusCode::NOT_FOUND);
 
         // Test that default well-known endpoint is NOT found
         let response = app

@@ -40,9 +40,9 @@ pub struct Settings {
     /// Paths for the JWKS endpoint. The first one is used in discovery.
     #[serde(default = "default_jwks_paths")]
     pub jwks_paths: Vec<String>,
-    /// Path for the UserInfo endpoint.
-    #[serde(default = "default_userinfo_path")]
-    pub userinfo_path: String,
+    /// Paths for the UserInfo endpoint. The first one is used in discovery.
+    #[serde(default = "default_userinfo_paths")]
+    pub userinfo_paths: Vec<String>,
     /// Path for the OIDC Discovery endpoint.
     #[serde(default = "default_well_known_path")]
     pub well_known_path: String,
@@ -86,8 +86,8 @@ fn default_token_paths() -> Vec<String> {
 fn default_jwks_paths() -> Vec<String> {
     vec!["/jwks".to_string()]
 }
-fn default_userinfo_path() -> String {
-    "/userinfo".to_string()
+fn default_userinfo_paths() -> Vec<String> {
+    vec!["/userinfo".to_string()]
 }
 fn default_well_known_path() -> String {
     "/.well-known/openid-configuration".to_string()
@@ -106,7 +106,7 @@ impl Default for Settings {
             authorize_path: default_authorize_path(),
             token_paths: default_token_paths(),
             jwks_paths: default_jwks_paths(),
-            userinfo_path: default_userinfo_path(),
+            userinfo_paths: default_userinfo_paths(),
             well_known_path: default_well_known_path(),
             confidential_clients: Vec::new(),
             public_clients: Vec::new(),
