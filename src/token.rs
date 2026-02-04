@@ -101,19 +101,20 @@ pub async fn token(
     tracing::info!("Received token request: grant_type={}", payload.grant_type);
 
     // Handle Basic Authentication
-    if let Some(auth_value) = headers.get(AUTHORIZATION) {
-        if let Ok(auth_str) = auth_value.to_str() {
-            if auth_str.starts_with("Basic ") {
-                let credentials = auth_str.trim_start_matches("Basic ");
-                if let Ok(decoded) = STANDARD.decode(credentials) {
-                    if let Ok(cred_str) = String::from_utf8(decoded) {
-                        if let Some((id, secret)) = cred_str.split_once(':') {
-                            // If client_id is missing in body, use from header
-                            if payload.client_id.is_none() {
-                                payload.client_id = Some(id.to_string());
-                            }
-                            // If client_secret is missing in body, use from header
-                            if payload.client_secret.is_none() {
+    // Only check header if client_secret is NOT provided in the payload.
+    // This enforces precedence and avoids parsing headers unnecessarily or mixing credentials.
+    if payload.client_secret.is_none() {
+        if let Some(auth_value) = headers.get(AUTHORIZATION) {
+            if let Ok(auth_str) = auth_value.to_str() {
+                if auth_str.starts_with("Basic ") {
+                    let credentials = auth_str.trim_start_matches("Basic ");
+                    if let Ok(decoded) = STANDARD.decode(credentials) {
+                        if let Ok(cred_str) = String::from_utf8(decoded) {
+                            if let Some((id, secret)) = cred_str.split_once(':') {
+                                // If client_id is missing in body, use from header
+                                if payload.client_id.is_none() {
+                                    payload.client_id = Some(id.to_string());
+                                }
                                 payload.client_secret = Some(secret.to_string());
                             }
                         }
