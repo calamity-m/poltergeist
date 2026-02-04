@@ -76,6 +76,11 @@ async fn authorize_impl(
         .public_clients
         .iter()
         .any(|c| c.client_id == params.client_id)
+        && !state
+            .settings
+            .confidential_clients
+            .iter()
+            .any(|c| c.client_id == params.client_id)
     {
         tracing::warn!("Invalid client_id: {}", params.client_id);
         return (StatusCode::BAD_REQUEST, "Invalid client_id").into_response();
@@ -520,5 +525,87 @@ mod tests {
                 .unwrap(),
             "http://upstream-login"
         );
+    }
+
+    #[tokio::test]
+    async fn test_authorize_confidential_client_success() {
+        let mut rng = rand::thread_rng();
+        let app_private_key = RsaPrivateKey::new(&mut rng, 2048).unwrap();
+        let app_private_key_pem = app_private_key
+            .to_pkcs8_pem(Default::default())
+            .unwrap()
+            .to_string();
+
+        let settings = config::Settings {
+            issuer: "http://localhost:8080".to_string(),
+            port: 8080,
+            upstream_oidc_url: "http://upstream-login".to_string(),
+            upstream_jwks_url: "".to_string(),
+            validate_upstream_token: false, // Skip validation for simplicity
+            signing_key_path: "test/private_key.pem".to_string(),
+            token_expires_in: 3600,
+            confidential_clients: vec![config::ConfidentialClient {
+                client_id: "confidential-client".to_string(),
+                client_secret: Some("secret".to_string()),
+                client_secret_env: None,
+                audience: "aud".to_string(),
+            }],
+            public_clients: vec![],
+            telemetry: Default::default(),
+            ..config::Settings::default()
+        };
+
+        let state = Arc::new(AppState {
+            settings,
+            jwks_cache: moka::future::Cache::builder().build(),
+            auth_code_cache: moka::future::Cache::builder().build(),
+            key_state: key::KeyState::new(&app_private_key_pem),
+        });
+
+        // Mock Upstream Token (since we disabled validation, signature doesn't matter much but we need claims)
+        let claims = UpstreamClaims {
+            sub: "test-user".to_string(),
+            email: "test@example.com".to_string(),
+            exp: 10000000000,
+            other: HashMap::new(),
+        };
+        // We still need a valid structure even if signature isn't validated by logic, 
+        // but wait, `upstream::get_upstream_identity` validates signature if `validate_upstream_token` is true.
+        // If false, it just decodes.
+        // We need to provide a somewhat valid JWT structure.
+        let mut header = Header::new(Algorithm::RS256);
+        header.kid = Some("any".to_string());
+        // We can sign with *any* key since validation is off
+        let private_key = RsaPrivateKey::new(&mut rng, 2048).unwrap();
+        let encoding_key = EncodingKey::from_rsa_der(private_key.to_pkcs1_der().unwrap().as_bytes());
+        let token = encode(&header, &claims, &encoding_key).unwrap();
+
+        let params = AuthorizeRequest {
+            client_id: "confidential-client".to_string(),
+            redirect_uri: "http://confidential/cb".to_string(),
+            response_type: "code".to_string(),
+            code_challenge: Some("challenge".to_string()),
+            state: None,
+            nonce: None,
+        };
+
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::AUTHORIZATION,
+            format!("Bearer {}", token).parse().unwrap(),
+        );
+
+        let response = authorize_get(State(state.clone()), Query(params), headers)
+            .await
+            .into_response();
+
+        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+        let location = response
+            .headers()
+            .get("location")
+            .unwrap()
+            .to_str()
+            .unwrap();
+        assert!(location.starts_with("http://confidential/cb?code="));
     }
 }
