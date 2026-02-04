@@ -167,7 +167,7 @@ signing_key_path: "test/private_key.pem"
 -   `GET /.well-known/openid-configuration`: OIDC discovery document.
 -   `GET /authorize`: Authorization endpoint.
 -   `POST /token`: Token endpoint (Multiple paths can be configured via `token_paths`).
--   `GET /jwks`: JSON Web Key Set endpoint.
+-   `GET /jwks`: JSON Web Key Set endpoint (Multiple paths can be configured via `jwks_paths`).
 
 ## Usage Examples
 

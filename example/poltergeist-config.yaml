@@ -35,7 +35,11 @@ authorize_path: "/authorize"
 token_paths:
   - "/token"
   - "/api/v1/token"
-jwks_path: "/jwks"
+# Paths for the JWKS endpoint.
+# Similar to token_paths, the first path is used for discovery.
+jwks_paths:
+  - "/jwks"
+  - "/api/v1/jwks"
 userinfo_path: "/userinfo"
 
 # Static Confidential Clients (for Service-to-Service M2M client_credentials flow).

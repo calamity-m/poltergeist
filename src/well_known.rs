@@ -40,7 +40,11 @@ pub async fn openid_configuration(State(state): State<Arc<AppState>>) -> Json<OI
             state.settings.token_paths.first().cloned().unwrap_or_else(|| "/token".to_string())
         ),
         userinfo_endpoint: format!("{}{}", state.settings.issuer, state.settings.userinfo_path),
-        jwks_uri: format!("{}{}", state.settings.issuer, state.settings.jwks_path),
+        jwks_uri: format!(
+            "{}{}",
+            state.settings.issuer,
+            state.settings.jwks_paths.first().cloned().unwrap_or_else(|| "/jwks".to_string())
+        ),
         response_types_supported: vec!["code".to_string()],
         subject_types_supported: vec!["public".to_string()],
         id_token_signing_alg_values_supported: vec!["RS256".to_string()],
@@ -69,7 +73,7 @@ mod tests {
             authorize_path: "/auth".to_string(),
             token_paths: vec!["/tkn".to_string(), "/hidden-tkn".to_string()],
             userinfo_path: "/uinfo".to_string(),
-            jwks_path: "/keys".to_string(),
+            jwks_paths: vec!["/keys".to_string(), "/hidden-keys".to_string()],
             ..Settings::default()
         };
 

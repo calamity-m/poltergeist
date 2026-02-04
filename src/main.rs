@@ -95,9 +95,12 @@ fn create_app(state: Arc<AppState>) -> Router {
         router = router.route(path, post(token::token));
     }
 
+    for path in &state.settings.jwks_paths {
+        router = router.route(path, get(jwks::jwks));
+    }
+
     router
         .route(&state.settings.userinfo_path, get(userinfo::userinfo))
-        .route(&state.settings.jwks_path, get(jwks::jwks))
         .layer(
             tower_http::trace::TraceLayer::new_for_http()
                 .on_failure(DefaultOnFailure::new().level(Level::ERROR))
@@ -134,6 +137,7 @@ mod tests {
         let settings = config::Settings {
             authorize_path: "/custom-authorize".to_string(),
             token_paths: vec!["/custom-token".to_string(), "/another-token".to_string()],
+            jwks_paths: vec!["/custom-jwks".to_string(), "/hidden-jwks".to_string()],
             well_known_path: "/custom-discovery".to_string(),
             ..config::Settings::default()
         };
@@ -218,6 +222,36 @@ mod tests {
                 Request::builder()
                     .method("GET")
                     .uri("/custom-discovery")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        // Test custom JWKS endpoint
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/custom-jwks")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        // Test another custom JWKS endpoint
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/hidden-jwks")
                     .body(Body::empty())
                     .unwrap(),
             )
