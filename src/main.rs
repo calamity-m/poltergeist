@@ -79,7 +79,7 @@ async fn main() {
 }
 
 fn create_app(state: Arc<AppState>) -> Router {
-    Router::new()
+    let mut router = Router::new()
         // `GET /` goes to `root`
         .route("/", get(root))
         .route(
@@ -89,8 +89,13 @@ fn create_app(state: Arc<AppState>) -> Router {
         .route(
             &state.settings.authorize_path,
             get(authorize::authorize_get).post(authorize::authorize_post),
-        )
-        .route(&state.settings.token_path, post(token::token))
+        );
+
+    for path in &state.settings.token_paths {
+        router = router.route(path, post(token::token));
+    }
+
+    router
         .route(&state.settings.userinfo_path, get(userinfo::userinfo))
         .route(&state.settings.jwks_path, get(jwks::jwks))
         .layer(
@@ -128,7 +133,7 @@ mod tests {
 
         let settings = config::Settings {
             authorize_path: "/custom-authorize".to_string(),
-            token_path: "/custom-token".to_string(),
+            token_paths: vec!["/custom-token".to_string(), "/another-token".to_string()],
             well_known_path: "/custom-discovery".to_string(),
             ..config::Settings::default()
         };
@@ -181,6 +186,22 @@ mod tests {
                 Request::builder()
                     .method("POST")
                     .uri("/custom-token")
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"grant_type":"client_credentials","client_id":"foo","client_secret":"bar"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_ne!(response.status(), StatusCode::NOT_FOUND);
+
+        // Test another custom token endpoint
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/another-token")
                     .header("content-type", "application/json")
                     .body(Body::from(r#"{"grant_type":"client_credentials","client_id":"foo","client_secret":"bar"}"#))
                     .unwrap(),

@@ -4,15 +4,15 @@
 
 use crate::AppState;
 use crate::jwt::downstream;
-use axum::{Form, Json};
 use axum::extract::{FromRequest, Request, State};
-use axum::http::{HeaderMap, StatusCode};
 use axum::http::header::{AUTHORIZATION, CONTENT_TYPE};
+use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
+use axum::{Form, Json};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use jsonwebtoken::{Header, encode};
-use serde::{Deserialize, Serialize};
 use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 /// Parameters for the token exchange request.
@@ -142,8 +142,10 @@ fn extract_basic_auth(headers: &HeaderMap) -> Option<(String, String)> {
     let credentials = auth_str.trim_start_matches("Basic ");
     let decoded = STANDARD.decode(credentials).ok()?;
     let cred_str = String::from_utf8(decoded).ok()?;
-    
-    cred_str.split_once(':').map(|(id, secret)| (id.to_string(), secret.to_string()))
+
+    cred_str
+        .split_once(':')
+        .map(|(id, secret)| (id.to_string(), secret.to_string()))
 }
 
 async fn handle_authorization_code(
@@ -261,10 +263,7 @@ async fn handle_client_credentials(
         )
     })?;
 
-    tracing::info!(
-        "Authenticating client_credentials for: {}",
-        client_id
-    );
+    tracing::info!("Authenticating client_credentials for: {}", client_id);
 
     // Find the client in the static configuration
     let client = state
@@ -272,8 +271,7 @@ async fn handle_client_credentials(
         .confidential_clients
         .iter()
         .find(|c| {
-            c.client_id == *client_id
-                && c.get_secret().as_deref() == Some(client_secret.as_str())
+            c.client_id == *client_id && c.get_secret().as_deref() == Some(client_secret.as_str())
         })
         .ok_or_else(|| {
             tracing::warn!("Invalid client credentials for: {}", client_id);
@@ -622,25 +620,29 @@ mod tests {
 
         let Json(response) = handle_client_credentials(state, payload).await.unwrap();
         assert!(!response.access_token.is_empty());
-        
+
         unsafe { std::env::remove_var(env_var_name) };
     }
 
     #[tokio::test]
     async fn test_json_or_form_extractor() {
-        use axum::extract::{FromRequest, Request};
-        use axum::http::header::CONTENT_TYPE;
         use axum::body::Body;
+        use axum::extract::{FromRequest, Request};
         use axum::http::Method;
+        use axum::http::header::CONTENT_TYPE;
 
         // Test JSON
         let req = Request::builder()
             .method(Method::POST)
             .header(CONTENT_TYPE, "application/json")
-            .body(Body::from(r#"{"client_id":"test","grant_type":"client_credentials"}"#))
+            .body(Body::from(
+                r#"{"client_id":"test","grant_type":"client_credentials"}"#,
+            ))
             .unwrap();
-        
-        let JsonOrForm(payload) = JsonOrForm::<TokenRequest>::from_request(req, &()).await.unwrap();
+
+        let JsonOrForm(payload) = JsonOrForm::<TokenRequest>::from_request(req, &())
+            .await
+            .unwrap();
         assert_eq!(payload.client_id, Some("test".to_string()));
         assert_eq!(payload.grant_type, "client_credentials");
 
@@ -650,8 +652,10 @@ mod tests {
             .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
             .body(Body::from("client_id=test&grant_type=client_credentials"))
             .unwrap();
-        
-        let JsonOrForm(payload) = JsonOrForm::<TokenRequest>::from_request(req, &()).await.unwrap();
+
+        let JsonOrForm(payload) = JsonOrForm::<TokenRequest>::from_request(req, &())
+            .await
+            .unwrap();
         assert_eq!(payload.client_id, Some("test".to_string()));
         assert_eq!(payload.grant_type, "client_credentials");
     }
@@ -688,8 +692,9 @@ mod tests {
         });
 
         // Basic Auth encoded "basic-client:basic-secret"
-        let credentials = base64::engine::general_purpose::STANDARD.encode("basic-client:basic-secret");
-        
+        let credentials =
+            base64::engine::general_purpose::STANDARD.encode("basic-client:basic-secret");
+
         let mut headers = HeaderMap::new();
         headers.insert(
             AUTHORIZATION,
@@ -700,11 +705,13 @@ mod tests {
             grant_type: "client_credentials".to_string(),
             code: None,
             code_verifier: None,
-            client_id: None, // Missing in body, should take from header
+            client_id: None,     // Missing in body, should take from header
             client_secret: None, // Missing in body, should take from header
         };
 
-        let Json(response) = token(State(state), headers, JsonOrForm(payload)).await.unwrap();
+        let Json(response) = token(State(state), headers, JsonOrForm(payload))
+            .await
+            .unwrap();
         assert!(!response.access_token.is_empty());
     }
 }

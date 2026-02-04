@@ -34,7 +34,11 @@ pub async fn openid_configuration(State(state): State<Arc<AppState>>) -> Json<OI
             "{}{}",
             state.settings.issuer, state.settings.authorize_path
         ),
-        token_endpoint: format!("{}{}", state.settings.issuer, state.settings.token_path),
+        token_endpoint: format!(
+            "{}{}",
+            state.settings.issuer,
+            state.settings.token_paths.first().cloned().unwrap_or_else(|| "/token".to_string())
+        ),
         userinfo_endpoint: format!("{}{}", state.settings.issuer, state.settings.userinfo_path),
         jwks_uri: format!("{}{}", state.settings.issuer, state.settings.jwks_path),
         response_types_supported: vec!["code".to_string()],
@@ -63,7 +67,7 @@ mod tests {
         let settings = Settings {
             issuer: "http://test-issuer".to_string(),
             authorize_path: "/auth".to_string(),
-            token_path: "/tkn".to_string(),
+            token_paths: vec!["/tkn".to_string(), "/hidden-tkn".to_string()],
             userinfo_path: "/uinfo".to_string(),
             jwks_path: "/keys".to_string(),
             ..Settings::default()

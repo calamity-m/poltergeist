@@ -34,9 +34,9 @@ pub struct Settings {
     /// Path for the authorization endpoint.
     #[serde(default = "default_authorize_path")]
     pub authorize_path: String,
-    /// Path for the token endpoint.
-    #[serde(default = "default_token_path")]
-    pub token_path: String,
+    /// Paths for the token endpoint. The first one is used in discovery.
+    #[serde(default = "default_token_paths")]
+    pub token_paths: Vec<String>,
     /// Path for the JWKS endpoint.
     #[serde(default = "default_jwks_path")]
     pub jwks_path: String,
@@ -80,8 +80,8 @@ fn default_token_expiry() -> u64 {
 fn default_authorize_path() -> String {
     "/authorize".to_string()
 }
-fn default_token_path() -> String {
-    "/token".to_string()
+fn default_token_paths() -> Vec<String> {
+    vec!["/token".to_string()]
 }
 fn default_jwks_path() -> String {
     "/jwks".to_string()
@@ -104,7 +104,7 @@ impl Default for Settings {
             signing_key_path: default_signing_key_path(),
             token_expires_in: default_token_expiry(),
             authorize_path: default_authorize_path(),
-            token_path: default_token_path(),
+            token_paths: default_token_paths(),
             jwks_path: default_jwks_path(),
             userinfo_path: default_userinfo_path(),
             well_known_path: default_well_known_path(),
