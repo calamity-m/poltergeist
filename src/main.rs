@@ -81,15 +81,16 @@ async fn main() {
 fn create_app(state: Arc<AppState>) -> Router {
     let mut router = Router::new()
         // `GET /` goes to `root`
-        .route("/", get(root))
-        .route(
-            &state.settings.well_known_path,
-            get(well_known::openid_configuration),
-        )
-        .route(
-            &state.settings.authorize_path,
-            get(authorize::authorize_get).post(authorize::authorize_post),
-        );
+        .route("/", get(root));
+
+    for path in &state.settings.well_known_paths {
+        router = router.route(path, get(well_known::openid_configuration));
+    }
+
+    router = router.route(
+        &state.settings.authorize_path,
+        get(authorize::authorize_get).post(authorize::authorize_post),
+    );
 
     for path in &state.settings.token_paths {
         router = router.route(path, post(token::token));
@@ -142,7 +143,7 @@ mod tests {
             token_paths: vec!["/custom-token".to_string(), "/another-token".to_string()],
             jwks_paths: vec!["/custom-jwks".to_string(), "/hidden-jwks".to_string()],
             userinfo_paths: vec!["/custom-userinfo".to_string(), "/hidden-userinfo".to_string()],
-            well_known_path: "/custom-discovery".to_string(),
+            well_known_paths: vec!["/custom-discovery".to_string(), "/another-discovery".to_string()],
             ..config::Settings::default()
         };
 
@@ -226,6 +227,21 @@ mod tests {
                 Request::builder()
                     .method("GET")
                     .uri("/custom-discovery")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        // Test another custom well-known endpoint
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/another-discovery")
                     .body(Body::empty())
                     .unwrap(),
             )

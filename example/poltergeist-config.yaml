@@ -45,6 +45,10 @@ jwks_paths:
 userinfo_paths:
   - "/userinfo"
   - "/api/v1/userinfo"
+# Paths for the OIDC Discovery endpoint.
+well_known_paths:
+  - "/.well-known/openid-configuration"
+  - "/config"
 
 # Static Confidential Clients (for Service-to-Service M2M client_credentials flow).
 confidential_clients:

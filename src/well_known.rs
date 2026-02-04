@@ -78,6 +78,7 @@ mod tests {
             token_paths: vec!["/tkn".to_string(), "/hidden-tkn".to_string()],
             userinfo_paths: vec!["/uinfo".to_string(), "/hidden-uinfo".to_string()],
             jwks_paths: vec!["/keys".to_string(), "/hidden-keys".to_string()],
+            well_known_paths: vec!["/.well-known/openid-configuration".to_string()],
             ..Settings::default()
         };
 

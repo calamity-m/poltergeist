@@ -43,9 +43,9 @@ pub struct Settings {
     /// Paths for the UserInfo endpoint. The first one is used in discovery.
     #[serde(default = "default_userinfo_paths")]
     pub userinfo_paths: Vec<String>,
-    /// Path for the OIDC Discovery endpoint.
-    #[serde(default = "default_well_known_path")]
-    pub well_known_path: String,
+    /// Paths for the OIDC Discovery endpoint.
+    #[serde(default = "default_well_known_paths")]
+    pub well_known_paths: Vec<String>,
     /// Static clients for M2M (client_credentials) flow.
     #[serde(default)]
     pub confidential_clients: Vec<ConfidentialClient>,
@@ -89,8 +89,8 @@ fn default_jwks_paths() -> Vec<String> {
 fn default_userinfo_paths() -> Vec<String> {
     vec!["/userinfo".to_string()]
 }
-fn default_well_known_path() -> String {
-    "/.well-known/openid-configuration".to_string()
+fn default_well_known_paths() -> Vec<String> {
+    vec!["/.well-known/openid-configuration".to_string()]
 }
 
 impl Default for Settings {
@@ -107,7 +107,7 @@ impl Default for Settings {
             token_paths: default_token_paths(),
             jwks_paths: default_jwks_paths(),
             userinfo_paths: default_userinfo_paths(),
-            well_known_path: default_well_known_path(),
+            well_known_paths: default_well_known_paths(),
             confidential_clients: Vec::new(),
             public_clients: Vec::new(),
             telemetry: TelemetryConfig::default(),
