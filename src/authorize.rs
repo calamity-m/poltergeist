@@ -8,7 +8,7 @@ use crate::{AppState, jwt::upstream, token::JsonOrForm};
 use axum::{
     extract::{Query, State},
     http::{HeaderMap, StatusCode},
-    response::{Html, IntoResponse, Redirect, Response},
+    response::{IntoResponse, Redirect, Response},
 };
 use rand::distributions::Alphanumeric;
 use rand::{Rng, thread_rng};
@@ -123,22 +123,6 @@ async fn authorize_impl(
                 redirect_url.push_str(&format!("&state={}", state_param));
             }
             Redirect::to(&redirect_url).into_response()
-        }
-        "form_post" => {
-            let html = format!(
-                r#"<!DOCTYPE html>
-<html>
-<head><title>Submit</title></head>
-<body onload="javascript:document.forms[0].submit()">
-<form method="post" action="{}">
-    <input type="hidden" name="code" value="{}"/>
-    <input type="hidden" name="state" value="{}"/>
-</form>
-</body>
-</html>"#,
-                params.redirect_uri, auth_code, state_param
-            );
-            Html(html).into_response()
         }
         _ => {
             // Default "query"
@@ -356,73 +340,6 @@ mod tests {
         let location = response.headers().get("location").unwrap().to_str().unwrap();
         assert!(location.contains("#code="));
         assert!(location.contains("state=xyz"));
-    }
-
-    #[tokio::test]
-    async fn test_authorize_form_post_mode() {
-        let mut rng = rand::thread_rng();
-        let app_private_key = RsaPrivateKey::new(&mut rng, 2048).unwrap();
-        let app_private_key_pem = app_private_key
-            .to_pkcs8_pem(Default::default())
-            .unwrap()
-            .to_string();
-
-        let settings = config::Settings {
-            issuer: "http://localhost:8080".to_string(),
-            port: 8080,
-            upstream_oidc_url: "http://upstream".to_string(),
-            upstream_jwks_url: "".to_string(),
-            validate_upstream_token: false,
-            signing_key_path: "test/private_key.pem".to_string(),
-            token_expires_in: 3600,
-            confidential_clients: vec![],
-            public_clients: vec![PublicClient {
-                client_id: "client".to_string(),
-                audience: "aud".to_string(),
-            }],
-            telemetry: Default::default(),
-            ..config::Settings::default()
-        };
-
-        let state = Arc::new(AppState {
-            settings,
-            jwks_cache: moka::future::Cache::builder().build(),
-            auth_code_cache: moka::future::Cache::builder().build(),
-            key_state: key::KeyState::new(&app_private_key_pem),
-        });
-
-        // Mock token
-        let claims = UpstreamClaims {
-            sub: "test".to_string(),
-            email: "t@e.c".to_string(),
-            exp: 9999999999,
-            other: HashMap::new(),
-        };
-        let mut header = Header::new(Algorithm::RS256);
-        header.kid = Some("any".to_string());
-        let encoding_key = EncodingKey::from_rsa_der(app_private_key.to_pkcs1_der().unwrap().as_bytes());
-        let token = encode(&header, &claims, &encoding_key).unwrap();
-
-        let params = AuthorizeRequest {
-            client_id: "client".to_string(),
-            redirect_uri: "http://client/cb".to_string(),
-            response_type: "code".to_string(),
-            response_mode: Some("form_post".to_string()),
-            scope: None,
-            code_challenge: None,
-            state: Some("xyz".to_string()),
-            nonce: None,
-        };
-
-        let mut headers = HeaderMap::new();
-        headers.insert(header::AUTHORIZATION, format!("Bearer {}", token).parse().unwrap());
-
-        let response = authorize_get(State(state), Query(params), headers).await.into_response();
-        
-        assert_eq!(response.status(), StatusCode::OK);
-        // We'd need to inspect the body to verify the HTML, but `IntoResponse` makes it a stream.
-        // For unit test simplicity, we just check status. 
-        // Integration tests or converting body to bytes would be needed for full content check.
     }
 
     #[tokio::test]
