@@ -254,23 +254,23 @@ impl Default for TelemetryConfig {
     }
 }
 
-/// Config for a second hosted well known endpoint,
-/// which can be customized with different hosts for
-/// the authorize/token/jwks/userinfo endpoints.
-/// The primary use of this is to allow for
-/// internal vs external well-known configuration
-/// integrations.
+/// Configuration for additional OIDC discovery (`.well-known`) endpoints.
 ///
+/// This allows hosting multiple discovery documents, each specifying different base URLs
+/// (hosts) for the OIDC endpoints. This is primarily used to handle split-horizon
+/// scenarios (e.g., internal vs. external network traffic) where clients might need
+/// to reach the same logical endpoints via different hostnames.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct SecondaryWellKnownConfiguration {
+    /// The unique path for this discovery document (e.g., "/.well-known/openid-configuration-external").
     pub path: String,
-    /// Host the authorize endpoint should be listed as (e.g. "https://auth.example.com")
+    /// The host/base URL to be listed for the 'authorization_endpoint' (e.g., "https://auth.example.com").
     pub authorization_host: String,
-    /// Host the token endpoint should be listed as (e.g. "https://auth.example.com")
+    /// The host/base URL to be listed for the 'token_endpoint' (e.g., "https://auth.example.com").
     pub token_host: String,
-    /// Host the jwks endpoint should be listed as (e.g. "https://auth.example.com")
+    /// The host/base URL to be listed for the 'jwks_uri' (e.g., "https://auth.example.com").
     pub jwks_host: String,
-    /// Host the userinfo endpoint should be listed as (e.g. "https://auth.example.com")
+    /// The host/base URL to be listed for the 'userinfo_endpoint' (e.g., "https://auth.example.com").
     pub userinfo_host: String,
 }
 
