@@ -78,7 +78,6 @@ impl Default for EndpointConfig {
     }
 }
 
-
 fn default_issuer() -> String {
     "http://localhost:8080".to_string()
 }
@@ -302,7 +301,7 @@ pub fn load_config() -> Settings {
                 "Failed to deserialize configuration, using defaults. Error: {}",
                 e
             );
-            Settings::default()
+            panic!("unable to deserialize configuration - {}", e)
         }
     }
 }
