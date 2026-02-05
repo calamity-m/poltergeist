@@ -51,6 +51,9 @@ pub struct Settings {
     /// Static clients for Browser to service (authorization_code) flow.
     #[serde(default)]
     pub public_clients: Vec<PublicClient>,
+    /// Secondary well-known configurations for internal/external splits.
+    #[serde(default)]
+    pub secondary_well_known: Vec<SecondaryWellKnownConfiguration>,
     #[serde(default)]
     pub telemetry: TelemetryConfig,
 }
@@ -109,6 +112,7 @@ impl Default for Settings {
             well_known_path: default_well_known_path(),
             confidential_clients: Vec::new(),
             public_clients: Vec::new(),
+            secondary_well_known: Vec::new(),
             telemetry: TelemetryConfig::default(),
         }
     }
@@ -232,6 +236,26 @@ impl Default for TelemetryConfig {
             otlp_enabled: false,
         }
     }
+}
+
+/// Config for a second hosted well known endpoint,
+/// which can be customized with different hosts for
+/// the authorize/token/jwks/userinfo endpoints.
+/// The primary use of this is to allow for
+/// internal vs external well-known configuration
+/// integrations.
+///
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct SecondaryWellKnownConfiguration {
+    pub path: String,
+    /// Host the authorize endpoint should be listed as (e.g. "https://auth.example.com")
+    pub authorization_host: String,
+    /// Host the token endpoint should be listed as (e.g. "https://auth.example.com")
+    pub token_host: String,
+    /// Host the jwks endpoint should be listed as (e.g. "https://auth.example.com")
+    pub jwks_host: String,
+    /// Host the userinfo endpoint should be listed as (e.g. "https://auth.example.com")
+    pub userinfo_host: String,
 }
 
 /// Loads configuration from the `config.yaml` file.

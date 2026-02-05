@@ -179,6 +179,12 @@ confidential_clients: []
   public_clients:
     - client_id: "frontend-app"
       audience: "user-profile-api"
+  secondary_well_known: []
+#    - path: "/.well-known/openid-configuration-external"
+#      authorization_host: "https://auth-ext.example.com"
+#      token_host: "https://auth-ext.example.com"
+#      jwks_host: "https://auth-ext.example.com"
+#      userinfo_host: "https://auth-ext.example.com"
   telemetry:
     format: "pretty"
     level: "info"

@@ -52,6 +52,15 @@ public_clients:
   - client_id: "example-app"
     audience: "example-api"
 
+# Secondary well-known configurations.
+# Useful for internal vs external discovery.
+secondary_well_known:
+  - path: "/.well-known/openid-configuration-external"
+    authorization_host: "https://auth-ext.example.com"
+    token_host: "https://auth-ext.example.com"
+    jwks_host: "https://auth-ext.example.com"
+    userinfo_host: "https://auth-ext.example.com"
+
 # Telemetry and Logging configuration.
 telemetry:
   # Output format: "json" (default) or "pretty".

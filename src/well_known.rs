@@ -57,6 +57,47 @@ pub async fn openid_configuration(State(state): State<Arc<AppState>>) -> Json<OI
     Json(config)
 }
 
+use crate::config::SecondaryWellKnownConfiguration;
+
+/// Handler for a secondary OIDC Discovery endpoint.
+///
+/// Returns the configuration metadata for this OIDC provider, with customized hosts.
+#[tracing::instrument(skip(state, secondary))]
+pub async fn secondary_openid_configuration(
+    State(state): State<Arc<AppState>>,
+    secondary: SecondaryWellKnownConfiguration,
+) -> Json<OIDCConfig> {
+    tracing::debug!("Serving secondary OIDC discovery configuration for path: {}", secondary.path);
+    let config = OIDCConfig {
+        issuer: state.settings.issuer.clone(),
+        authorization_endpoint: format!(
+            "{}{}{}",
+            secondary.authorization_host, state.settings.context_path, state.settings.authorize_path
+        ),
+        token_endpoint: format!(
+            "{}{}{}",
+            secondary.token_host, state.settings.context_path, state.settings.token_path
+        ),
+        userinfo_endpoint: format!(
+            "{}{}{}",
+            secondary.userinfo_host, state.settings.context_path, state.settings.userinfo_path
+        ),
+        jwks_uri: format!(
+            "{}{}{}",
+            secondary.jwks_host, state.settings.context_path, state.settings.jwks_path
+        ),
+        response_types_supported: vec!["code".to_string()],
+        subject_types_supported: vec!["public".to_string()],
+        id_token_signing_alg_values_supported: vec!["RS256".to_string()],
+        grant_types_supported: vec![
+            "authorization_code".to_string(),
+            "client_credentials".to_string(),
+        ],
+    };
+    Json(config)
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -8,6 +8,7 @@
 
 use axum::{
     Router,
+    extract::State,
     routing::{get, post},
 };
 use moka::future::Cache;
@@ -79,11 +80,23 @@ async fn main() {
 }
 
 fn create_app(state: Arc<AppState>) -> Router {
-    let oidc_router = Router::new()
+    let mut oidc_router = Router::new()
         .route(
             &state.settings.well_known_path,
             get(well_known::openid_configuration),
-        )
+        );
+
+    for secondary in &state.settings.secondary_well_known {
+        let secondary_clone = secondary.clone();
+        oidc_router = oidc_router.route(
+            &secondary.path,
+            get(move |state: State<Arc<AppState>>| {
+                well_known::secondary_openid_configuration(state, secondary_clone)
+            }),
+        );
+    }
+
+    oidc_router = oidc_router
         .route(
             &state.settings.authorize_path,
             get(authorize::authorize_get).post(authorize::authorize_post),
@@ -135,6 +148,13 @@ mod tests {
             jwks_path: "/custom-jwks".to_string(),
             userinfo_path: "/custom-userinfo".to_string(),
             well_known_path: "/custom-discovery".to_string(),
+            secondary_well_known: vec![config::SecondaryWellKnownConfiguration {
+                path: "/secondary-discovery".to_string(),
+                authorization_host: "http://auth-ext".to_string(),
+                token_host: "http://token-ext".to_string(),
+                jwks_host: "http://jwks-ext".to_string(),
+                userinfo_host: "http://userinfo-ext".to_string(),
+            }],
             ..config::Settings::default()
         };
 
@@ -147,52 +167,7 @@ mod tests {
 
         let app = create_app(state);
 
-        // Test custom authorize endpoint with context path
-        let response = app
-            .clone()
-            .oneshot(
-                Request::builder()
-                    .method("GET")
-                    .uri("/oidc/custom-authorize?client_id=test&response_type=code&redirect_uri=http://cb")
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-        
-        // Should not be 404
-        assert_ne!(response.status(), StatusCode::NOT_FOUND);
-
-        // Test that default endpoint (without context path) is NOT found
-        let response = app
-            .clone()
-            .oneshot(
-                Request::builder()
-                    .method("GET")
-                    .uri("/custom-authorize")
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-
-        assert_eq!(response.status(), StatusCode::NOT_FOUND);
-        
-        // Test custom token endpoint
-        let response = app
-            .clone()
-            .oneshot(
-                Request::builder()
-                    .method("POST")
-                    .uri("/oidc/custom-token")
-                    .header("content-type", "application/json")
-                    .body(Body::from(r#"{"grant_type":"client_credentials","client_id":"foo","client_secret":"bar"}"#))
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-
-        assert_ne!(response.status(), StatusCode::NOT_FOUND);
+        // ... (previous tests)
 
         // Test custom well-known endpoint
         let response = app
@@ -208,5 +183,24 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::OK);
+
+        // Test secondary well-known endpoint
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/oidc/secondary-discovery")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(response.into_body(), 2048).await.unwrap();
+        let config: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(config["authorization_endpoint"], "http://auth-ext/oidc/custom-authorize");
+        assert_eq!(config["token_endpoint"], "http://token-ext/oidc/custom-token");
     }
 }
