@@ -108,10 +108,16 @@ fn create_app(state: Arc<AppState>) -> Router {
         .route(&state.settings.endpoints.jwks, get(jwks::jwks))
         .route(&state.settings.endpoints.userinfo, get(userinfo::userinfo));
 
-    Router::new()
-        .route("/", get(root))
-        .nest(&state.settings.context_path, oidc_router)
-        .layer(
+    let app = Router::new()
+        .route("/", get(root));
+
+    let app = if state.settings.context_path.is_empty() || state.settings.context_path == "/" {
+        app.merge(oidc_router)
+    } else {
+        app.nest(&state.settings.context_path, oidc_router)
+    };
+
+    app.layer(
             tower_http::trace::TraceLayer::new_for_http()
                 .on_failure(DefaultOnFailure::new().level(Level::ERROR))
                 .on_request(DefaultOnRequest::new().level(Level::INFO))
