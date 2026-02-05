@@ -79,32 +79,20 @@ async fn main() {
 }
 
 fn create_app(state: Arc<AppState>) -> Router {
-    let mut router = Router::new()
+    Router::new()
         // `GET /` goes to `root`
-        .route("/", get(root));
-
-    for path in &state.settings.well_known_paths {
-        router = router.route(path, get(well_known::openid_configuration));
-    }
-
-    router = router.route(
-        &state.settings.authorize_path,
-        get(authorize::authorize_get).post(authorize::authorize_post),
-    );
-
-    for path in &state.settings.token_paths {
-        router = router.route(path, post(token::token));
-    }
-
-    for path in &state.settings.jwks_paths {
-        router = router.route(path, get(jwks::jwks));
-    }
-
-    for path in &state.settings.userinfo_paths {
-        router = router.route(path, get(userinfo::userinfo));
-    }
-
-    router
+        .route("/", get(root))
+        .route(
+            &state.settings.well_known_path,
+            get(well_known::openid_configuration),
+        )
+        .route(
+            &state.settings.authorize_path,
+            get(authorize::authorize_get).post(authorize::authorize_post),
+        )
+        .route(&state.settings.token_path, post(token::token))
+        .route(&state.settings.jwks_path, get(jwks::jwks))
+        .route(&state.settings.userinfo_path, get(userinfo::userinfo))
         .layer(
             tower_http::trace::TraceLayer::new_for_http()
                 .on_failure(DefaultOnFailure::new().level(Level::ERROR))
@@ -140,10 +128,10 @@ mod tests {
 
         let settings = config::Settings {
             authorize_path: "/custom-authorize".to_string(),
-            token_paths: vec!["/custom-token".to_string(), "/another-token".to_string()],
-            jwks_paths: vec!["/custom-jwks".to_string(), "/hidden-jwks".to_string()],
-            userinfo_paths: vec!["/custom-userinfo".to_string(), "/hidden-userinfo".to_string()],
-            well_known_paths: vec!["/custom-discovery".to_string(), "/another-discovery".to_string()],
+            token_path: "/custom-token".to_string(),
+            jwks_path: "/custom-jwks".to_string(),
+            userinfo_path: "/custom-userinfo".to_string(),
+            well_known_path: "/custom-discovery".to_string(),
             ..config::Settings::default()
         };
 
@@ -169,8 +157,7 @@ mod tests {
             .await
             .unwrap();
         
-        // Should not be 404 (likely 302 redirect to upstream or 400 if validation fails, 
-        // but since we don't have upstream header, it will likely be 302 to upstream or 400 invalid client)
+        // Should not be 404
         assert_ne!(response.status(), StatusCode::NOT_FOUND);
 
         // Test that default endpoint is NOT found
@@ -204,22 +191,6 @@ mod tests {
 
         assert_ne!(response.status(), StatusCode::NOT_FOUND);
 
-        // Test another custom token endpoint
-        let response = app
-            .clone()
-            .oneshot(
-                Request::builder()
-                    .method("POST")
-                    .uri("/another-token")
-                    .header("content-type", "application/json")
-                    .body(Body::from(r#"{"grant_type":"client_credentials","client_id":"foo","client_secret":"bar"}"#))
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-
-        assert_ne!(response.status(), StatusCode::NOT_FOUND);
-
         // Test custom well-known endpoint
         let response = app
             .clone()
@@ -227,21 +198,6 @@ mod tests {
                 Request::builder()
                     .method("GET")
                     .uri("/custom-discovery")
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-
-        assert_eq!(response.status(), StatusCode::OK);
-
-        // Test another custom well-known endpoint
-        let response = app
-            .clone()
-            .oneshot(
-                Request::builder()
-                    .method("GET")
-                    .uri("/another-discovery")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -265,21 +221,6 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
 
-        // Test another custom JWKS endpoint
-        let response = app
-            .clone()
-            .oneshot(
-                Request::builder()
-                    .method("GET")
-                    .uri("/hidden-jwks")
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-
-        assert_eq!(response.status(), StatusCode::OK);
-
         // Test custom UserInfo endpoint
         let response = app
             .clone()
@@ -294,21 +235,6 @@ mod tests {
             .unwrap();
 
         // Not found because we don't provide a token, but it should be 401/400 not 404
-        assert_ne!(response.status(), StatusCode::NOT_FOUND);
-
-        // Test another custom UserInfo endpoint
-        let response = app
-            .clone()
-            .oneshot(
-                Request::builder()
-                    .method("GET")
-                    .uri("/hidden-userinfo")
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-
         assert_ne!(response.status(), StatusCode::NOT_FOUND);
 
         // Test that default well-known endpoint is NOT found

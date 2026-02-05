@@ -36,18 +36,15 @@ pub async fn openid_configuration(State(state): State<Arc<AppState>>) -> Json<OI
         ),
         token_endpoint: format!(
             "{}{}",
-            state.settings.issuer,
-            state.settings.token_paths.first().cloned().unwrap_or_else(|| "/token".to_string())
+            state.settings.issuer, state.settings.token_path
         ),
         userinfo_endpoint: format!(
             "{}{}",
-            state.settings.issuer,
-            state.settings.userinfo_paths.first().cloned().unwrap_or_else(|| "/userinfo".to_string())
+            state.settings.issuer, state.settings.userinfo_path
         ),
         jwks_uri: format!(
             "{}{}",
-            state.settings.issuer,
-            state.settings.jwks_paths.first().cloned().unwrap_or_else(|| "/jwks".to_string())
+            state.settings.issuer, state.settings.jwks_path
         ),
         response_types_supported: vec!["code".to_string()],
         subject_types_supported: vec!["public".to_string()],
@@ -75,10 +72,10 @@ mod tests {
         let settings = Settings {
             issuer: "http://test-issuer".to_string(),
             authorize_path: "/auth".to_string(),
-            token_paths: vec!["/tkn".to_string(), "/hidden-tkn".to_string()],
-            userinfo_paths: vec!["/uinfo".to_string(), "/hidden-uinfo".to_string()],
-            jwks_paths: vec!["/keys".to_string(), "/hidden-keys".to_string()],
-            well_known_paths: vec!["/.well-known/openid-configuration".to_string()],
+            token_path: "/tkn".to_string(),
+            userinfo_path: "/uinfo".to_string(),
+            jwks_path: "/keys".to_string(),
+            well_known_path: "/.well-known/openid-configuration".to_string(),
             ..Settings::default()
         };
 

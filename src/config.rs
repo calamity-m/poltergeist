@@ -34,18 +34,18 @@ pub struct Settings {
     /// Path for the authorization endpoint.
     #[serde(default = "default_authorize_path")]
     pub authorize_path: String,
-    /// Paths for the token endpoint. The first one is used in discovery.
-    #[serde(default = "default_token_paths")]
-    pub token_paths: Vec<String>,
-    /// Paths for the JWKS endpoint. The first one is used in discovery.
-    #[serde(default = "default_jwks_paths")]
-    pub jwks_paths: Vec<String>,
-    /// Paths for the UserInfo endpoint. The first one is used in discovery.
-    #[serde(default = "default_userinfo_paths")]
-    pub userinfo_paths: Vec<String>,
-    /// Paths for the OIDC Discovery endpoint.
-    #[serde(default = "default_well_known_paths")]
-    pub well_known_paths: Vec<String>,
+    /// Path for the token endpoint.
+    #[serde(default = "default_token_path")]
+    pub token_path: String,
+    /// Path for the JWKS endpoint.
+    #[serde(default = "default_jwks_path")]
+    pub jwks_path: String,
+    /// Path for the UserInfo endpoint.
+    #[serde(default = "default_userinfo_path")]
+    pub userinfo_path: String,
+    /// Path for the OIDC Discovery endpoint.
+    #[serde(default = "default_well_known_path")]
+    pub well_known_path: String,
     /// Static clients for M2M (client_credentials) flow.
     #[serde(default)]
     pub confidential_clients: Vec<ConfidentialClient>,
@@ -80,17 +80,17 @@ fn default_token_expiry() -> u64 {
 fn default_authorize_path() -> String {
     "/authorize".to_string()
 }
-fn default_token_paths() -> Vec<String> {
-    vec!["/token".to_string()]
+fn default_token_path() -> String {
+    "/token".to_string()
 }
-fn default_jwks_paths() -> Vec<String> {
-    vec!["/jwks".to_string()]
+fn default_jwks_path() -> String {
+    "/jwks".to_string()
 }
-fn default_userinfo_paths() -> Vec<String> {
-    vec!["/userinfo".to_string()]
+fn default_userinfo_path() -> String {
+    "/userinfo".to_string()
 }
-fn default_well_known_paths() -> Vec<String> {
-    vec!["/.well-known/openid-configuration".to_string()]
+fn default_well_known_path() -> String {
+    "/.well-known/openid-configuration".to_string()
 }
 
 impl Default for Settings {
@@ -104,10 +104,10 @@ impl Default for Settings {
             signing_key_path: default_signing_key_path(),
             token_expires_in: default_token_expiry(),
             authorize_path: default_authorize_path(),
-            token_paths: default_token_paths(),
-            jwks_paths: default_jwks_paths(),
-            userinfo_paths: default_userinfo_paths(),
-            well_known_paths: default_well_known_paths(),
+            token_path: default_token_path(),
+            jwks_path: default_jwks_path(),
+            userinfo_path: default_userinfo_path(),
+            well_known_path: default_well_known_path(),
             confidential_clients: Vec::new(),
             public_clients: Vec::new(),
             telemetry: TelemetryConfig::default(),

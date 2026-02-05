@@ -29,26 +29,14 @@ token_expires_in: 3600
 # These allow you to change the default OIDC paths.
 # For example, setting authorize_path to "/login" would change the endpoint from /authorize to /login.
 authorize_path: "/authorize"
-# Paths for the token endpoint.
-# The FIRST path in this list is used as the 'token_endpoint' in OIDC discovery.
-# The remaining paths are also registered and functional, but remain "hidden" from discovery.
-token_paths:
-  - "/token"
-  - "/api/v1/token"
-# Paths for the JWKS endpoint.
-# Similar to token_paths, the first path is used for discovery.
-jwks_paths:
-  - "/jwks"
-  - "/api/v1/jwks"
-# Paths for the UserInfo endpoint.
-# Similar to token_paths, the first path is used for discovery.
-userinfo_paths:
-  - "/userinfo"
-  - "/api/v1/userinfo"
-# Paths for the OIDC Discovery endpoint.
-well_known_paths:
-  - "/.well-known/openid-configuration"
-  - "/config"
+# Path for the token endpoint.
+token_path: "/token"
+# Path for the JWKS endpoint.
+jwks_path: "/jwks"
+# Path for the UserInfo endpoint.
+userinfo_path: "/userinfo"
+# Path for the OIDC Discovery endpoint.
+well_known_path: "/.well-known/openid-configuration"
 
 # Static Confidential Clients (for Service-to-Service M2M client_credentials flow).
 confidential_clients:
