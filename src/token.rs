@@ -472,7 +472,6 @@ mod tests {
         // Mock upstream token
         let upstream_claims = crate::jwt::upstream::UpstreamClaims {
             sub: "test-user".to_string(),
-            email: "test@example.com".to_string(),
             exp: 10000000000,
             other: HashMap::new(),
         };
@@ -537,7 +536,6 @@ mod tests {
         // 1. Put identity in cache
         let upstream_claims = crate::jwt::upstream::UpstreamClaims {
             sub: "confidential-user".to_string(),
-            email: "confid@example.com".to_string(),
             exp: 10000000000,
             other: HashMap::new(),
         };

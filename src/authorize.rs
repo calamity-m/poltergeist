@@ -227,7 +227,6 @@ mod tests {
         // 3. Create Upstream Token
         let claims = UpstreamClaims {
             sub: "test-user".to_string(),
-            email: "test@example.com".to_string(),
             exp: 10000000000, // far in the future
             other: HashMap::new(),
         };
@@ -309,7 +308,6 @@ mod tests {
         // Mock token
         let claims = UpstreamClaims {
             sub: "test".to_string(),
-            email: "t@e.c".to_string(),
             exp: 9999999999,
             other: HashMap::new(),
         };
@@ -402,7 +400,6 @@ mod tests {
         // 3. Create Upstream Token
         let claims = UpstreamClaims {
             sub: "test-user".to_string(),
-            email: "test@example.com".to_string(),
             exp: 10000000000,
             other: HashMap::new(),
         };
@@ -509,7 +506,6 @@ mod tests {
         // 3. Create Upstream Token
         let claims = UpstreamClaims {
             sub: "test-user".to_string(),
-            email: "test@example.com".to_string(),
             exp: 10000000000,
             other: HashMap::new(),
         };
@@ -648,7 +644,6 @@ mod tests {
         // Mock Upstream Token (since we disabled validation, signature doesn't matter much but we need claims)
         let claims = UpstreamClaims {
             sub: "test-user".to_string(),
-            email: "test@example.com".to_string(),
             exp: 10000000000,
             other: HashMap::new(),
         };

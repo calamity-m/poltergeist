@@ -20,7 +20,6 @@ use serde_json::Value;
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct UpstreamClaims {
     pub sub: String,
-    pub email: String,
     pub exp: u64,
     /// Everything else lands here
     #[serde(flatten)]
