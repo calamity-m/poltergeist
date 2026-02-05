@@ -99,10 +99,12 @@ pub async fn token(
     JsonOrForm(mut payload): JsonOrForm<TokenRequest>,
 ) -> Result<Json<TokenResponse>, (StatusCode, String)> {
     tracing::info!("Received token request: grant_type={}", payload.grant_type);
+    tracing::debug!("Token request payload: {:?}", payload);
 
     // Handle Basic Authentication
     // Only check header if client_secret is NOT provided in the payload.
     if let (None, Some((id, secret))) = (&payload.client_secret, extract_basic_auth(&headers)) {
+        tracing::debug!("Extracted credentials from Basic Auth header for client_id: {}", id);
         // If client_id is missing in body, use from header
         if payload.client_id.is_none() {
             payload.client_id = Some(id);
@@ -112,12 +114,19 @@ pub async fn token(
 
     // Ensure client_id is present
     if payload.client_id.is_none() {
+        tracing::warn!("Token request missing client_id");
         return Err((StatusCode::BAD_REQUEST, "missing client_id".to_string()));
     }
 
     match payload.grant_type.as_str() {
-        "client_credentials" => handle_client_credentials(state, payload).await,
-        "authorization_code" => handle_authorization_code(state, payload).await,
+        "client_credentials" => {
+            tracing::debug!("Handling client_credentials grant");
+            handle_client_credentials(state, payload).await
+        },
+        "authorization_code" => {
+            tracing::debug!("Handling authorization_code grant");
+            handle_authorization_code(state, payload).await
+        },
         _ => {
             tracing::warn!("Unsupported grant type: {}", payload.grant_type);
             Err((
@@ -278,6 +287,7 @@ async fn handle_client_credentials(
             )
         })?;
 
+    tracing::debug!("Issuing M2M tokens for client: {}, audience: {}", client_id, client.audience);
     let claims = downstream::create_downstream_claims_for_client_credentials(&state, client).await;
 
     let mut header = Header::new(jsonwebtoken::Algorithm::RS256);

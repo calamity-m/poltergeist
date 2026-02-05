@@ -68,6 +68,7 @@ async fn authorize_impl(
     params: AuthorizeRequest,
     headers: HeaderMap,
 ) -> Response {
+    tracing::debug!("Handling authorize request: {:?}", params);
     tracing::info!(
         "Received authorization request for client: {}",
         params.client_id
@@ -91,7 +92,10 @@ async fn authorize_impl(
 
     // Ensure the header is present and valid
     let identity = match upstream::get_upstream_identity(&state, &headers).await {
-        Ok(id) => id,
+        Ok(id) => {
+            tracing::debug!("Successfully extracted upstream identity: sub={}", id.sub);
+            id
+        },
         Err((status, msg)) => {
             tracing::warn!("Failed to get upstream identity: {} - {}", status, msg);
             return (StatusCode::BAD_REQUEST, format!("Authentication required: {}", msg)).into_response();
@@ -111,6 +115,7 @@ async fn authorize_impl(
         .await;
 
     tracing::info!("Issued authorization code for client: {}", params.client_id);
+    tracing::debug!("Stored authorization code {} in cache", auth_code);
 
     // Handle Response Modes
     let state_param = params.state.unwrap_or_default();
@@ -122,6 +127,7 @@ async fn authorize_impl(
             if !state_param.is_empty() {
                 redirect_url.push_str(&format!("&state={}", state_param));
             }
+            tracing::debug!("Redirecting to (fragment mode): {}", redirect_url);
             Redirect::to(&redirect_url).into_response()
         }
         _ => {
@@ -130,6 +136,7 @@ async fn authorize_impl(
             if !state_param.is_empty() {
                 redirect_url.push_str(&format!("&state={}", state_param));
             }
+            tracing::debug!("Redirecting to (query mode): {}", redirect_url);
             Redirect::to(&redirect_url).into_response()
         }
     }

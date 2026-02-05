@@ -13,8 +13,8 @@ use axum::{
     response::Json,
     routing::{get, post},
 };
-use std::collections::HashMap;
 use moka::future::Cache;
+use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -66,6 +66,10 @@ async fn main() {
     let key_state = key::KeyState::new(&private_key_pem);
     tracing::info!("Cryptographic keys initialized.");
 
+    if !settings.context_path.is_empty() {
+        tracing::info!("Using context path {}", settings.context_path)
+    }
+
     let shared_state = Arc::new(AppState {
         settings,
         jwks_cache,
@@ -78,16 +82,16 @@ async fn main() {
     // run our app with hyper
     let addr = SocketAddr::from(([0, 0, 0, 0], shared_state.settings.port));
     tracing::info!("Listening on http://{}", addr);
+
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
 }
 
 fn create_app(state: Arc<AppState>) -> Router {
-    let mut oidc_router = Router::new()
-        .route(
-            &state.settings.endpoints.well_known,
-            get(well_known::openid_configuration),
-        );
+    let mut oidc_router = Router::new().route(
+        &state.settings.endpoints.well_known,
+        get(well_known::openid_configuration),
+    );
 
     for secondary in &state.settings.secondary_well_known {
         let secondary_clone = secondary.clone();
@@ -108,8 +112,7 @@ fn create_app(state: Arc<AppState>) -> Router {
         .route(&state.settings.endpoints.jwks, get(jwks::jwks))
         .route(&state.settings.endpoints.userinfo, get(userinfo::userinfo));
 
-    let app = Router::new()
-        .route("/", get(root));
+    let app = Router::new().route("/", get(root));
 
     let app = if state.settings.context_path.is_empty() || state.settings.context_path == "/" {
         app.merge(oidc_router)
@@ -118,23 +121,24 @@ fn create_app(state: Arc<AppState>) -> Router {
     };
 
     app.layer(
-            tower_http::trace::TraceLayer::new_for_http()
-                .on_failure(DefaultOnFailure::new().level(Level::ERROR))
-                .on_request(DefaultOnRequest::new().level(Level::INFO))
-                .on_response(
-                    DefaultOnResponse::new()
-                        .include_headers(true)
-                        .level(Level::INFO),
-                ),
-        )
-        .layer(middleware::AuditLayer)
-        .layer(middleware::TraceParentLayer)
-        .with_state(state)
+        tower_http::trace::TraceLayer::new_for_http()
+            .on_failure(DefaultOnFailure::new().level(Level::ERROR))
+            .on_request(DefaultOnRequest::new().level(Level::INFO))
+            .on_response(
+                DefaultOnResponse::new()
+                    .include_headers(true)
+                    .level(Level::INFO),
+            ),
+    )
+    .layer(middleware::AuditLayer)
+    .layer(middleware::TraceParentLayer)
+    .with_state(state)
 }
 
 /// Basic health check endpoint that returns all request headers.
 #[tracing::instrument(skip(headers))]
 async fn root(headers: HeaderMap) -> Json<HashMap<String, String>> {
+    tracing::debug!("Handling root request, returning headers as JSON");
     let mut header_map = HashMap::new();
     for (name, value) in headers.iter() {
         if let Ok(val) = value.to_str() {
@@ -215,9 +219,17 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::OK);
-        let body = axum::body::to_bytes(response.into_body(), 2048).await.unwrap();
+        let body = axum::body::to_bytes(response.into_body(), 2048)
+            .await
+            .unwrap();
         let config: serde_json::Value = serde_json::from_slice(&body).unwrap();
-        assert_eq!(config["authorization_endpoint"], "http://auth-ext/oidc/custom-authorize");
-        assert_eq!(config["token_endpoint"], "http://token-ext/oidc/custom-token");
+        assert_eq!(
+            config["authorization_endpoint"],
+            "http://auth-ext/oidc/custom-authorize"
+        );
+        assert_eq!(
+            config["token_endpoint"],
+            "http://token-ext/oidc/custom-token"
+        );
     }
 }

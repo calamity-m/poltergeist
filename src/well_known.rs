@@ -27,7 +27,7 @@ pub struct OIDCConfig {
 /// Returns the configuration metadata for this OIDC provider.
 #[tracing::instrument(skip(state))]
 pub async fn openid_configuration(State(state): State<Arc<AppState>>) -> Json<OIDCConfig> {
-    tracing::debug!("Serving OIDC discovery configuration");
+    tracing::debug!("Serving default OIDC discovery configuration");
     let config = OIDCConfig {
         issuer: state.settings.issuer.clone(),
         authorization_endpoint: format!(

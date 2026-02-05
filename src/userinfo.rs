@@ -17,15 +17,20 @@ pub async fn userinfo(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
 ) -> Result<Json<DownstreamClaims>, (StatusCode, String)> {
+    tracing::debug!("Received request for UserInfo");
     // 1. Extract the token from Authorization header
     let auth_header = headers
         .get(header::AUTHORIZATION)
-        .ok_or((
-            StatusCode::UNAUTHORIZED,
-            "Missing Authorization header".to_string(),
-        ))?
+        .ok_or_else(|| {
+            tracing::warn!("Missing Authorization header in userinfo request");
+            (
+                StatusCode::UNAUTHORIZED,
+                "Missing Authorization header".to_string(),
+            )
+        })?
         .to_str()
         .map_err(|_| {
+            tracing::warn!("Invalid Authorization header encoding");
             (
                 StatusCode::BAD_REQUEST,
                 "Invalid Authorization header".to_string(),
@@ -33,10 +38,12 @@ pub async fn userinfo(
         })?;
 
     if !auth_header.starts_with("Bearer ") {
+        tracing::warn!("Invalid auth scheme in userinfo request: expected Bearer");
         return Err((StatusCode::BAD_REQUEST, "Invalid auth scheme".to_string()));
     }
 
     let token = &auth_header["Bearer ".len()..];
+    tracing::debug!("Validating token for userinfo");
 
     // 2. Validate the token using our own public key
     // We configured validation to expect RS256.
@@ -58,6 +65,7 @@ pub async fn userinfo(
         })?;
 
     tracing::info!("Served userinfo for subject: {}", token_data.claims.sub);
+    tracing::debug!("Claims served: {:?}", token_data.claims);
 
     Ok(Json(token_data.claims))
 }
