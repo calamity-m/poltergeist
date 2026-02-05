@@ -9,8 +9,11 @@
 use axum::{
     Router,
     extract::State,
+    http::HeaderMap,
+    response::Json,
     routing::{get, post},
 };
+use std::collections::HashMap;
 use moka::future::Cache;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -123,10 +126,16 @@ fn create_app(state: Arc<AppState>) -> Router {
         .with_state(state)
 }
 
-/// Basic health check endpoint.
-#[tracing::instrument]
-async fn root() -> &'static str {
-    "Hello, World!"
+/// Basic health check endpoint that returns all request headers.
+#[tracing::instrument(skip(headers))]
+async fn root(headers: HeaderMap) -> Json<HashMap<String, String>> {
+    let mut header_map = HashMap::new();
+    for (name, value) in headers.iter() {
+        if let Ok(val) = value.to_str() {
+            header_map.insert(name.to_string(), val.to_string());
+        }
+    }
+    Json(header_map)
 }
 
 #[cfg(test)]
