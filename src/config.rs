@@ -30,21 +30,9 @@ pub struct Settings {
     /// Default token expiration time in seconds.
     #[serde(default = "default_token_expiry")]
     pub token_expires_in: u64,
-    /// Path for the authorization endpoint.
-    #[serde(default = "default_authorize_path")]
-    pub authorize_path: String,
-    /// Path for the token endpoint.
-    #[serde(default = "default_token_path")]
-    pub token_path: String,
-    /// Path for the JWKS endpoint.
-    #[serde(default = "default_jwks_path")]
-    pub jwks_path: String,
-    /// Path for the UserInfo endpoint.
-    #[serde(default = "default_userinfo_path")]
-    pub userinfo_path: String,
-    /// Path for the OIDC Discovery endpoint.
-    #[serde(default = "default_well_known_path")]
-    pub well_known_path: String,
+    /// Custom endpoint paths.
+    #[serde(default)]
+    pub endpoints: EndpointConfig,
     /// Static clients for M2M (client_credentials) flow.
     #[serde(default)]
     pub confidential_clients: Vec<ConfidentialClient>,
@@ -57,6 +45,39 @@ pub struct Settings {
     #[serde(default)]
     pub telemetry: TelemetryConfig,
 }
+
+/// Custom endpoint paths configuration.
+#[derive(Clone, Deserialize, Serialize, Debug)]
+pub struct EndpointConfig {
+    /// Path for the authorization endpoint.
+    #[serde(default = "default_authorize_path")]
+    pub authorize: String,
+    /// Path for the token endpoint.
+    #[serde(default = "default_token_path")]
+    pub token: String,
+    /// Path for the JWKS endpoint.
+    #[serde(default = "default_jwks_path")]
+    pub jwks: String,
+    /// Path for the UserInfo endpoint.
+    #[serde(default = "default_userinfo_path")]
+    pub userinfo: String,
+    /// Path for the OIDC Discovery endpoint.
+    #[serde(default = "default_well_known_path")]
+    pub well_known: String,
+}
+
+impl Default for EndpointConfig {
+    fn default() -> Self {
+        Self {
+            authorize: default_authorize_path(),
+            token: default_token_path(),
+            jwks: default_jwks_path(),
+            userinfo: default_userinfo_path(),
+            well_known: default_well_known_path(),
+        }
+    }
+}
+
 
 fn default_issuer() -> String {
     "http://localhost:8080".to_string()
@@ -105,11 +126,7 @@ impl Default for Settings {
             validate_upstream_token: default_validate_upstream(),
             signing_key_path: default_signing_key_path(),
             token_expires_in: default_token_expiry(),
-            authorize_path: default_authorize_path(),
-            token_path: default_token_path(),
-            jwks_path: default_jwks_path(),
-            userinfo_path: default_userinfo_path(),
-            well_known_path: default_well_known_path(),
+            endpoints: EndpointConfig::default(),
             confidential_clients: Vec::new(),
             public_clients: Vec::new(),
             secondary_well_known: Vec::new(),

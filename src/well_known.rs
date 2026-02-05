@@ -32,19 +32,19 @@ pub async fn openid_configuration(State(state): State<Arc<AppState>>) -> Json<OI
         issuer: state.settings.issuer.clone(),
         authorization_endpoint: format!(
             "{}{}{}",
-            state.settings.issuer, state.settings.context_path, state.settings.authorize_path
+            state.settings.issuer, state.settings.context_path, state.settings.endpoints.authorize
         ),
         token_endpoint: format!(
             "{}{}{}",
-            state.settings.issuer, state.settings.context_path, state.settings.token_path
+            state.settings.issuer, state.settings.context_path, state.settings.endpoints.token
         ),
         userinfo_endpoint: format!(
             "{}{}{}",
-            state.settings.issuer, state.settings.context_path, state.settings.userinfo_path
+            state.settings.issuer, state.settings.context_path, state.settings.endpoints.userinfo
         ),
         jwks_uri: format!(
             "{}{}{}",
-            state.settings.issuer, state.settings.context_path, state.settings.jwks_path
+            state.settings.issuer, state.settings.context_path, state.settings.endpoints.jwks
         ),
         response_types_supported: vec!["code".to_string()],
         subject_types_supported: vec!["public".to_string()],
@@ -72,19 +72,19 @@ pub async fn secondary_openid_configuration(
         issuer: state.settings.issuer.clone(),
         authorization_endpoint: format!(
             "{}{}{}",
-            secondary.authorization_host, state.settings.context_path, state.settings.authorize_path
+            secondary.authorization_host, state.settings.context_path, state.settings.endpoints.authorize
         ),
         token_endpoint: format!(
             "{}{}{}",
-            secondary.token_host, state.settings.context_path, state.settings.token_path
+            secondary.token_host, state.settings.context_path, state.settings.endpoints.token
         ),
         userinfo_endpoint: format!(
             "{}{}{}",
-            secondary.userinfo_host, state.settings.context_path, state.settings.userinfo_path
+            secondary.userinfo_host, state.settings.context_path, state.settings.endpoints.userinfo
         ),
         jwks_uri: format!(
             "{}{}{}",
-            secondary.jwks_host, state.settings.context_path, state.settings.jwks_path
+            secondary.jwks_host, state.settings.context_path, state.settings.endpoints.jwks
         ),
         response_types_supported: vec!["code".to_string()],
         subject_types_supported: vec!["public".to_string()],
@@ -113,11 +113,13 @@ mod tests {
         let settings = Settings {
             issuer: "http://test-issuer".to_string(),
             context_path: "/oidc".to_string(),
-            authorize_path: "/auth".to_string(),
-            token_path: "/tkn".to_string(),
-            userinfo_path: "/uinfo".to_string(),
-            jwks_path: "/keys".to_string(),
-            well_known_path: "/.well-known/openid-configuration".to_string(),
+            endpoints: crate::config::EndpointConfig {
+                authorize: "/auth".to_string(),
+                token: "/tkn".to_string(),
+                userinfo: "/uinfo".to_string(),
+                jwks: "/keys".to_string(),
+                well_known: "/.well-known/openid-configuration".to_string(),
+            },
             ..Settings::default()
         };
 

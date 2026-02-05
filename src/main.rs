@@ -85,7 +85,7 @@ async fn main() {
 fn create_app(state: Arc<AppState>) -> Router {
     let mut oidc_router = Router::new()
         .route(
-            &state.settings.well_known_path,
+            &state.settings.endpoints.well_known,
             get(well_known::openid_configuration),
         );
 
@@ -101,12 +101,12 @@ fn create_app(state: Arc<AppState>) -> Router {
 
     oidc_router = oidc_router
         .route(
-            &state.settings.authorize_path,
+            &state.settings.endpoints.authorize,
             get(authorize::authorize_get).post(authorize::authorize_post),
         )
-        .route(&state.settings.token_path, post(token::token))
-        .route(&state.settings.jwks_path, get(jwks::jwks))
-        .route(&state.settings.userinfo_path, get(userinfo::userinfo));
+        .route(&state.settings.endpoints.token, post(token::token))
+        .route(&state.settings.endpoints.jwks, get(jwks::jwks))
+        .route(&state.settings.endpoints.userinfo, get(userinfo::userinfo));
 
     Router::new()
         .route("/", get(root))
@@ -152,11 +152,13 @@ mod tests {
 
         let settings = config::Settings {
             context_path: "/oidc".to_string(),
-            authorize_path: "/custom-authorize".to_string(),
-            token_path: "/custom-token".to_string(),
-            jwks_path: "/custom-jwks".to_string(),
-            userinfo_path: "/custom-userinfo".to_string(),
-            well_known_path: "/custom-discovery".to_string(),
+            endpoints: config::EndpointConfig {
+                authorize: "/custom-authorize".to_string(),
+                token: "/custom-token".to_string(),
+                jwks: "/custom-jwks".to_string(),
+                userinfo: "/custom-userinfo".to_string(),
+                well_known: "/custom-discovery".to_string(),
+            },
             secondary_well_known: vec![config::SecondaryWellKnownConfiguration {
                 path: "/secondary-discovery".to_string(),
                 authorization_host: "http://auth-ext".to_string(),

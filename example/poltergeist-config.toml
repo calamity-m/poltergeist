@@ -22,11 +22,12 @@ signing_key_path = "/etc/poltergeist/private_key.pem"
 token_expires_in = 3600
 
 # Optional: Custom endpoint paths.
-authorize_path = "/authorize"
-token_path = "/token"
-jwks_path = "/jwks"
-userinfo_path = "/userinfo"
-well_known_path = "/.well-known/openid-configuration"
+[endpoints]
+authorize = "/authorize"
+token = "/token"
+jwks = "/jwks"
+userinfo = "/userinfo"
+well_known = "/.well-known/openid-configuration"
 
 # Static Confidential Clients
 [[confidential_clients]]

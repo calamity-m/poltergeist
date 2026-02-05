@@ -146,6 +146,12 @@ port: 8080
 upstream_jwks_url: "http://upstream-idp/.well-known/jwks.json"
 validate_upstream_token: false
 signing_key_path: "test/private_key.pem"
+endpoints:
+  authorize: "/authorize"
+  token: "/token"
+  jwks: "/jwks"
+  userinfo: "/userinfo"
+  well_known: "/.well-known/openid-configuration"
 ```
 
 ## Running the Application
