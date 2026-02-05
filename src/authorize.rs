@@ -92,9 +92,9 @@ async fn authorize_impl(
     // Ensure the header is present and valid
     let identity = match upstream::get_upstream_identity(&state, &headers).await {
         Ok(id) => id,
-        Err((_, _)) => {
-            tracing::info!("No valid Authorization header found, redirecting to upstream IDP");
-            return Redirect::to(&state.settings.upstream_oidc_url).into_response();
+        Err((status, msg)) => {
+            tracing::warn!("Failed to get upstream identity: {} - {}", status, msg);
+            return (StatusCode::BAD_REQUEST, format!("Authentication required: {}", msg)).into_response();
         }
     };
 
@@ -198,7 +198,6 @@ mod tests {
         let settings = config::Settings {
             issuer: "http://localhost:8080".to_string(),
             port: 8080,
-            upstream_oidc_url: "http://upstream".to_string(),
             upstream_jwks_url: format!("{}/jwks.json", mock_server.uri()),
             validate_upstream_token: true,
             signing_key_path: "test/private_key.pem".to_string(),
@@ -287,7 +286,6 @@ mod tests {
         let settings = config::Settings {
             issuer: "http://localhost:8080".to_string(),
             port: 8080,
-            upstream_oidc_url: "http://upstream".to_string(),
             upstream_jwks_url: "".to_string(),
             validate_upstream_token: false,
             signing_key_path: "test/private_key.pem".to_string(),
@@ -375,7 +373,6 @@ mod tests {
         let settings = config::Settings {
             issuer: "http://localhost:8080".to_string(),
             port: 8080,
-            upstream_oidc_url: "http://upstream".to_string(),
             upstream_jwks_url: format!("{}/jwks.json", mock_server.uri()),
             validate_upstream_token: true,
             signing_key_path: "test/private_key.pem".to_string(),
@@ -483,7 +480,6 @@ mod tests {
         let settings = config::Settings {
             issuer: "http://localhost:8080".to_string(),
             port: 8080,
-            upstream_oidc_url: "http://upstream".to_string(),
             upstream_jwks_url: format!("{}/jwks.json", mock_server.uri()),
             validate_upstream_token: true,
             signing_key_path: "test/private_key.pem".to_string(),
@@ -573,7 +569,6 @@ mod tests {
         let settings = config::Settings {
             issuer: "http://localhost:8080".to_string(),
             port: 8080,
-            upstream_oidc_url: "http://upstream-login".to_string(),
             upstream_jwks_url: "".to_string(),
             validate_upstream_token: true,
             signing_key_path: "test/private_key.pem".to_string(),
@@ -611,16 +606,9 @@ mod tests {
             .await
             .into_response();
 
-        assert_eq!(response.status(), StatusCode::SEE_OTHER);
-        assert_eq!(
-            response
-                .headers()
-                .get("location")
-                .unwrap()
-                .to_str()
-                .unwrap(),
-            "http://upstream-login"
-        );
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = axum::body::to_bytes(response.into_body(), 1024).await.unwrap();
+        assert!(String::from_utf8_lossy(&body).contains("Authentication required"));
     }
 
     #[tokio::test]
@@ -635,7 +623,6 @@ mod tests {
         let settings = config::Settings {
             issuer: "http://localhost:8080".to_string(),
             port: 8080,
-            upstream_oidc_url: "http://upstream-login".to_string(),
             upstream_jwks_url: "".to_string(),
             validate_upstream_token: false, // Skip validation for simplicity
             signing_key_path: "test/private_key.pem".to_string(),

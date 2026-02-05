@@ -142,7 +142,6 @@ The application is configured via `config.yaml`. An example configuration:
 ```yaml
 issuer: "http://localhost:8080"
 port: 8080
-upstream_oidc_url: "http://upstream-idp/auth"
 upstream_jwks_url: "http://upstream-idp/.well-known/jwks.json"
 validate_upstream_token: false
 signing_key_path: "test/private_key.pem"

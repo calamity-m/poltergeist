@@ -7,10 +7,6 @@ issuer: "http://poltergeist:8080"
 # Port number the server will listen on.
 port: 8080
 
-# URL to the upstream OIDC provider's authorization endpoint.
-# Poltergeist redirects unauthenticated users here.
-upstream_oidc_url: "http://upstream-idp/auth"
-
 # URL to the upstream OIDC provider's JWKS endpoint.
 # Required if 'validate_upstream_token' is set to true.
 upstream_jwks_url: "http://upstream-idp/.well-known/jwks.json"

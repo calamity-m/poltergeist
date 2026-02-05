@@ -13,10 +13,6 @@ pub struct Settings {
     /// Port number the server will listen on.
     #[serde(default = "default_port")]
     pub port: u16,
-    /// URL to the upstream OIDC provider's authorization endpoint.
-    /// Used for redirecting unauthenticated users.
-    #[serde(default = "default_upstream_oidc")]
-    pub upstream_oidc_url: String,
     /// URL to the upstream OIDC provider's JWKS endpoint.
     /// Used for validating upstream tokens.
     #[serde(default = "default_upstream_jwks")]
@@ -62,9 +58,6 @@ fn default_issuer() -> String {
 fn default_port() -> u16 {
     8080
 }
-fn default_upstream_oidc() -> String {
-    "http://localhost:8081/login".to_string()
-}
 fn default_upstream_jwks() -> String {
     "http://localhost:8081/.well-known/jwks.json".to_string()
 }
@@ -98,7 +91,6 @@ impl Default for Settings {
         Self {
             issuer: default_issuer(),
             port: default_port(),
-            upstream_oidc_url: default_upstream_oidc(),
             upstream_jwks_url: default_upstream_jwks(),
             validate_upstream_token: default_validate_upstream(),
             signing_key_path: default_signing_key_path(),

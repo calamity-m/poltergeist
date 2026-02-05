@@ -79,7 +79,6 @@ mod tests {
         let settings = Settings {
             issuer: "http://localhost:8080".to_string(),
             port: 8080,
-            upstream_oidc_url: "http://upstream".to_string(),
             upstream_jwks_url: "http://upstream/jwks".to_string(),
             validate_upstream_token: false,
             signing_key_path: "test/private_key.pem".to_string(),
@@ -133,7 +132,6 @@ mod tests {
         let settings = Settings {
             issuer: "http://localhost:8080".to_string(),
             port: 8080,
-            upstream_oidc_url: "http://upstream".to_string(),
             upstream_jwks_url: "http://upstream/jwks".to_string(),
             validate_upstream_token: false,
             signing_key_path: "test/private_key.pem".to_string(),
