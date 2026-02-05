@@ -1,0 +1,55 @@
+# Poltergeist Example Configuration (TOML)
+
+# The base URL identifying this OIDC provider.
+issuer = "http://poltergeist:8080"
+
+# The context path that prefixes all endpoints (e.g., "/oidc").
+context_path = ""
+
+# Port number the server will listen on.
+port = 8080
+
+# URL to the upstream OIDC provider's JWKS endpoint.
+upstream_jwks_url = "http://upstream-idp/.well-known/jwks.json"
+
+# Whether to strictly validate the signature of the upstream token.
+validate_upstream_token = false
+
+# Path to the RSA private key (PEM format) used for signing downstream tokens.
+signing_key_path = "/etc/poltergeist/private_key.pem"
+
+# Default token expiration time in seconds.
+token_expires_in = 3600
+
+# Optional: Custom endpoint paths.
+authorize_path = "/authorize"
+token_path = "/token"
+jwks_path = "/jwks"
+userinfo_path = "/userinfo"
+well_known_path = "/.well-known/openid-configuration"
+
+# Static Confidential Clients
+[[confidential_clients]]
+client_id = "example-m2m"
+client_secret = "example-secret"
+audience = "example-audience"
+
+# Static Public Clients
+[[public_clients]]
+client_id = "example-app"
+audience = "example-api"
+
+# Secondary well-known configurations.
+[[secondary_well_known]]
+path = "/.well-known/openid-configuration-external"
+authorization_host = "https://auth-ext.example.com"
+token_host = "https://auth-ext.example.com"
+jwks_host = "https://auth-ext.example.com"
+userinfo_host = "https://auth-ext.example.com"
+
+# Telemetry and Logging configuration.
+[telemetry]
+format = "pretty"
+level = "info"
+axum_level = "warn"
+service_name = "poltergeist-example"
