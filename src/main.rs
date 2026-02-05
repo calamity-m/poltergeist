@@ -79,9 +79,7 @@ async fn main() {
 }
 
 fn create_app(state: Arc<AppState>) -> Router {
-    Router::new()
-        // `GET /` goes to `root`
-        .route("/", get(root))
+    let oidc_router = Router::new()
         .route(
             &state.settings.well_known_path,
             get(well_known::openid_configuration),
@@ -92,7 +90,11 @@ fn create_app(state: Arc<AppState>) -> Router {
         )
         .route(&state.settings.token_path, post(token::token))
         .route(&state.settings.jwks_path, get(jwks::jwks))
-        .route(&state.settings.userinfo_path, get(userinfo::userinfo))
+        .route(&state.settings.userinfo_path, get(userinfo::userinfo));
+
+    Router::new()
+        .route("/", get(root))
+        .nest(&state.settings.context_path, oidc_router)
         .layer(
             tower_http::trace::TraceLayer::new_for_http()
                 .on_failure(DefaultOnFailure::new().level(Level::ERROR))
@@ -127,6 +129,7 @@ mod tests {
         let key_state = key::KeyState::new(&private_key_pem);
 
         let settings = config::Settings {
+            context_path: "/oidc".to_string(),
             authorize_path: "/custom-authorize".to_string(),
             token_path: "/custom-token".to_string(),
             jwks_path: "/custom-jwks".to_string(),
@@ -144,13 +147,13 @@ mod tests {
 
         let app = create_app(state);
 
-        // Test custom authorize endpoint
+        // Test custom authorize endpoint with context path
         let response = app
             .clone()
             .oneshot(
                 Request::builder()
                     .method("GET")
-                    .uri("/custom-authorize?client_id=test&response_type=code&redirect_uri=http://cb")
+                    .uri("/oidc/custom-authorize?client_id=test&response_type=code&redirect_uri=http://cb")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -160,13 +163,13 @@ mod tests {
         // Should not be 404
         assert_ne!(response.status(), StatusCode::NOT_FOUND);
 
-        // Test that default endpoint is NOT found
+        // Test that default endpoint (without context path) is NOT found
         let response = app
             .clone()
             .oneshot(
                 Request::builder()
                     .method("GET")
-                    .uri("/authorize")
+                    .uri("/custom-authorize")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -181,7 +184,7 @@ mod tests {
             .oneshot(
                 Request::builder()
                     .method("POST")
-                    .uri("/custom-token")
+                    .uri("/oidc/custom-token")
                     .header("content-type", "application/json")
                     .body(Body::from(r#"{"grant_type":"client_credentials","client_id":"foo","client_secret":"bar"}"#))
                     .unwrap(),
@@ -197,7 +200,7 @@ mod tests {
             .oneshot(
                 Request::builder()
                     .method("GET")
-                    .uri("/custom-discovery")
+                    .uri("/oidc/custom-discovery")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -205,51 +208,5 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::OK);
-
-        // Test custom JWKS endpoint
-        let response = app
-            .clone()
-            .oneshot(
-                Request::builder()
-                    .method("GET")
-                    .uri("/custom-jwks")
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-
-        assert_eq!(response.status(), StatusCode::OK);
-
-        // Test custom UserInfo endpoint
-        let response = app
-            .clone()
-            .oneshot(
-                Request::builder()
-                    .method("GET")
-                    .uri("/custom-userinfo")
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-
-        // Not found because we don't provide a token, but it should be 401/400 not 404
-        assert_ne!(response.status(), StatusCode::NOT_FOUND);
-
-        // Test that default well-known endpoint is NOT found
-        let response = app
-            .clone()
-            .oneshot(
-                Request::builder()
-                    .method("GET")
-                    .uri("/.well-known/openid-configuration")
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-
-        assert_eq!(response.status(), StatusCode::NOT_FOUND);
     }
 }

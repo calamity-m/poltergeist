@@ -141,6 +141,7 @@ The application is configured via `config.yaml`. An example configuration:
 
 ```yaml
 issuer: "http://localhost:8080"
+context_path: ""
 port: 8080
 upstream_jwks_url: "http://upstream-idp/.well-known/jwks.json"
 validate_upstream_token: false

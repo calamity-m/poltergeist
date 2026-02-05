@@ -4,6 +4,10 @@
 # This URL will be used as the 'iss' (issuer) claim in tokens.
 issuer: "http://poltergeist:8080"
 
+# The context path that prefixes all endpoints (e.g., "/oidc").
+# If set to "/oidc", the token endpoint will be at "/oidc/token".
+context_path: ""
+
 # Port number the server will listen on.
 port: 8080
 

@@ -10,6 +10,9 @@ pub struct Settings {
     /// The base URL identifying this OIDC provider (e.g., "http://localhost:8080").
     #[serde(default = "default_issuer")]
     pub issuer: String,
+    /// The context path that prefixes all endpoints (e.g., "/oidc").
+    #[serde(default = "default_context_path")]
+    pub context_path: String,
     /// Port number the server will listen on.
     #[serde(default = "default_port")]
     pub port: u16,
@@ -55,6 +58,9 @@ pub struct Settings {
 fn default_issuer() -> String {
     "http://localhost:8080".to_string()
 }
+fn default_context_path() -> String {
+    "".to_string()
+}
 fn default_port() -> u16 {
     8080
 }
@@ -90,6 +96,7 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             issuer: default_issuer(),
+            context_path: default_context_path(),
             port: default_port(),
             upstream_jwks_url: default_upstream_jwks(),
             validate_upstream_token: default_validate_upstream(),
