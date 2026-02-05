@@ -52,8 +52,7 @@ pub struct DownstreamClaims {
 /// Used by both authorization code flow (where `other` comes from upstream user identity)
 /// and client credentials flow (via `create_downstream_claims_for_client_credentials`).
 pub fn create_downstream_claims(
-    issuer: String,
-    token_expires_in: u64,
+    settings: &crate::config::Settings,
     client_id: String,
     audience: String,
     subject: String,
@@ -82,9 +81,9 @@ pub fn create_downstream_claims(
         sub: subject,
         aud: audience,
         client_id,
-        iss: issuer,
+        iss: settings.issuer.clone(),
         iat: now,
-        exp: now + token_expires_in,
+        exp: now + settings.token_expires_in,
         nonce,
         scope,
         other,
@@ -109,8 +108,7 @@ pub async fn create_downstream_claims_for_client_credentials(
     client: &ConfidentialClient,
 ) -> DownstreamClaims {
     create_downstream_claims(
-        state.settings.issuer.clone(),
-        state.settings.token_expires_in,
+        &state.settings,
         client.client_id.clone(),
         client.audience.clone(),
         client.client_id.clone(),
@@ -132,9 +130,14 @@ mod tests {
         other.insert("sub".to_string(), json!("malicious-override"));
         other.insert("custom-claim".to_string(), json!("custom-value"));
 
+        let settings = crate::config::Settings {
+            issuer: "real-issuer".to_string(),
+            token_expires_in: 1000,
+            ..crate::config::Settings::default()
+        };
+
         let claims = create_downstream_claims(
-            "real-issuer".to_string(),
-            1000,
+            &settings,
             "real-client".to_string(),
             "real-audience".to_string(),
             "real-subject".to_string(),

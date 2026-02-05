@@ -102,14 +102,12 @@ pub async fn token(
 
     // Handle Basic Authentication
     // Only check header if client_secret is NOT provided in the payload.
-    if payload.client_secret.is_none() {
-        if let Some((id, secret)) = extract_basic_auth(&headers) {
-            // If client_id is missing in body, use from header
-            if payload.client_id.is_none() {
-                payload.client_id = Some(id);
-            }
-            payload.client_secret = Some(secret);
+    if let (None, Some((id, secret))) = (&payload.client_secret, extract_basic_auth(&headers)) {
+        // If client_id is missing in body, use from header
+        if payload.client_id.is_none() {
+            payload.client_id = Some(id);
         }
+        payload.client_secret = Some(secret);
     }
 
     // Ensure client_id is present
@@ -220,8 +218,7 @@ async fn handle_authorization_code(
     tracing::debug!("Issuing tokens with audience: {}", aud);
 
     let claims = downstream::create_downstream_claims(
-        state.settings.issuer.clone(),
-        state.settings.token_expires_in,
+        &state.settings,
         client_id.clone(),
         aud,
         context.claims.sub,

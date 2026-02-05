@@ -98,8 +98,7 @@ mod tests {
 
         // Mint a valid token
         let claims = crate::jwt::downstream::create_downstream_claims(
-            settings.issuer.clone(),
-            settings.token_expires_in,
+            &settings,
             "client".to_string(),
             "aud".to_string(),
             "test-user".to_string(),
