@@ -25,7 +25,8 @@ pub struct DownstreamClaims {
     /// Audience.
     pub aud: String,
     /// Client ID
-    pub client_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_id: Option<String>,
     /// Issuer.
     pub iss: String,
     /// Expiration time (UNIX timestamp).
@@ -53,7 +54,7 @@ pub struct DownstreamClaims {
 /// and client credentials flow (via `create_downstream_claims_for_client_credentials`).
 pub fn create_downstream_claims(
     settings: &crate::config::Settings,
-    client_id: String,
+    client_id: Option<String>,
     audience: String,
     subject: String,
     nonce: Option<String>,
@@ -109,7 +110,7 @@ pub async fn create_downstream_claims_for_client_credentials(
 ) -> DownstreamClaims {
     create_downstream_claims(
         &state.settings,
-        client.client_id.clone(),
+        Some(client.client_id.clone()),
         client.audience.clone(),
         client.client_id.clone(),
         None,
@@ -138,7 +139,7 @@ mod tests {
 
         let claims = create_downstream_claims(
             &settings,
-            "real-client".to_string(),
+            None,
             "real-audience".to_string(),
             "real-subject".to_string(),
             None,
