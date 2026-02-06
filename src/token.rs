@@ -40,6 +40,9 @@ pub struct TokenResponse {
     id_token: String,
     /// Time in seconds until the token expires.
     expires_in: u64,
+    /// The client identifier (only for client_credentials grant).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_id: Option<String>,
 }
 
 /// Helper extractor for handling both JSON and Form requests.
@@ -252,6 +255,7 @@ async fn handle_authorization_code(
         access_token: token_string.clone(),
         id_token: token_string,
         expires_in,
+        client_id: None,
     }))
 }
 
@@ -304,6 +308,7 @@ async fn handle_client_credentials(
         access_token: token_string.clone(),
         id_token: token_string, // For client_credentials, we often return the same token or similar
         expires_in: state.settings.token_expires_in,
+        client_id: Some(client_id.clone()),
     }))
 }
 
@@ -357,6 +362,7 @@ mod tests {
         let Json(response) = handle_client_credentials(state, payload).await.unwrap();
         assert!(!response.access_token.is_empty());
         assert_eq!(response.expires_in, 3600);
+        assert_eq!(response.client_id, Some("test-client".to_string()));
     }
 
     #[tokio::test]
@@ -511,6 +517,7 @@ mod tests {
         assert_eq!(token_data.claims.sub, "test-user");
         assert_eq!(token_data.claims.nonce, Some("test-nonce".to_string()));
         assert_eq!(token_data.claims.scope, Some("openid profile".to_string()));
+        assert_eq!(response.client_id, None);
     }
 
     #[tokio::test]
@@ -574,6 +581,7 @@ mod tests {
 
         assert_eq!(token_data.claims.aud, "confidential-aud");
         assert_eq!(token_data.claims.sub, "confidential-user");
+        assert_eq!(response.client_id, None);
     }
 
     #[tokio::test]
@@ -711,5 +719,6 @@ mod tests {
             .await
             .unwrap();
         assert!(!response.access_token.is_empty());
+        assert_eq!(response.client_id, Some("basic-client".to_string()));
     }
 }
