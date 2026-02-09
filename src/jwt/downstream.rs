@@ -82,7 +82,7 @@ pub fn create_downstream_claims(
         sub: subject,
         aud: audience,
         client_id,
-        iss: settings.issuer.clone(),
+        iss: format!("{}{}", settings.issuer, settings.context_path),
         iat: now,
         exp: now + settings.token_expires_in,
         nonce,

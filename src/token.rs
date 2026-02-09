@@ -106,7 +106,10 @@ pub async fn token(
     // Handle Basic Authentication
     // Only check header if client_secret is NOT provided in the payload.
     if let (None, Some((id, secret))) = (&payload.client_secret, extract_basic_auth(&headers)) {
-        tracing::debug!("Extracted credentials from Basic Auth header for client_id: {}", id);
+        tracing::debug!(
+            "Extracted credentials from Basic Auth header for client_id: {}",
+            id
+        );
         // If client_id is missing in body, use from header
         if payload.client_id.is_none() {
             payload.client_id = Some(id);
@@ -124,11 +127,11 @@ pub async fn token(
         "client_credentials" => {
             tracing::debug!("Handling client_credentials grant");
             handle_client_credentials(state, payload).await
-        },
+        }
         "authorization_code" => {
             tracing::debug!("Handling authorization_code grant");
             handle_authorization_code(state, payload).await
-        },
+        }
         _ => {
             tracing::warn!("Unsupported grant type: {}", payload.grant_type);
             Err((
@@ -290,7 +293,11 @@ async fn handle_client_credentials(
             )
         })?;
 
-    tracing::debug!("Issuing M2M tokens for client: {}, audience: {}", client_id, client.audience);
+    tracing::debug!(
+        "Issuing M2M tokens for client: {}, audience: {}",
+        client_id,
+        client.audience
+    );
     let claims = downstream::create_downstream_claims_for_client_credentials(&state, client).await;
 
     let mut header = Header::new(jsonwebtoken::Algorithm::RS256);

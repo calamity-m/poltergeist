@@ -29,7 +29,7 @@ pub struct OIDCConfig {
 pub async fn openid_configuration(State(state): State<Arc<AppState>>) -> Json<OIDCConfig> {
     tracing::debug!("Serving default OIDC discovery configuration");
     let config = OIDCConfig {
-        issuer: state.settings.issuer.clone(),
+        issuer: format!("{}{}", state.settings.issuer, state.settings.context_path),
         authorization_endpoint: format!(
             "{}{}{}",
             state.settings.issuer, state.settings.context_path, state.settings.endpoints.authorize
@@ -67,12 +67,17 @@ pub async fn secondary_openid_configuration(
     State(state): State<Arc<AppState>>,
     secondary: SecondaryWellKnownConfiguration,
 ) -> Json<OIDCConfig> {
-    tracing::debug!("Serving secondary OIDC discovery configuration for path: {}", secondary.path);
+    tracing::debug!(
+        "Serving secondary OIDC discovery configuration for path: {}",
+        secondary.path
+    );
     let config = OIDCConfig {
-        issuer: state.settings.issuer.clone(),
+        issuer: format!("{}{}", state.settings.issuer, state.settings.context_path),
         authorization_endpoint: format!(
             "{}{}{}",
-            secondary.authorization_host, state.settings.context_path, state.settings.endpoints.authorize
+            secondary.authorization_host,
+            state.settings.context_path,
+            state.settings.endpoints.authorize
         ),
         token_endpoint: format!(
             "{}{}{}",
@@ -96,7 +101,6 @@ pub async fn secondary_openid_configuration(
     };
     Json(config)
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -132,8 +136,11 @@ mod tests {
 
         let Json(config) = openid_configuration(State(state)).await;
 
-        assert_eq!(config.issuer, "http://test-issuer");
-        assert_eq!(config.authorization_endpoint, "http://test-issuer/oidc/auth");
+        assert_eq!(config.issuer, "http://test-issuer/oidc");
+        assert_eq!(
+            config.authorization_endpoint,
+            "http://test-issuer/oidc/auth"
+        );
         assert_eq!(config.token_endpoint, "http://test-issuer/oidc/tkn");
         assert_eq!(config.userinfo_endpoint, "http://test-issuer/oidc/uinfo");
         assert_eq!(config.jwks_uri, "http://test-issuer/oidc/keys");
